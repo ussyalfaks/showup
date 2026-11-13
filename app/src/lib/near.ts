@@ -130,9 +130,37 @@ export function parseCardSecret(input: string): string | null {
 }
 
 /** Claim a card with the secret from its link. Signed by the card's own key on the contract account. */
-export async function claimCard(secret: string, receiverId: string) {
+/**
+ * Claim gas must fit the card key's allowance: NEAR checks the allowance against the gas
+ * attached at about 0.001 NEAR per Tgas (measured on testnet, protocol 88).
+ * Needed: a NEAR claim to a brand-new implicit account ~20 Tgas (account creation alone is
+ * 7.2 Tgas); a token claim ~38 Tgas. Keys get 0.03 / 0.05 NEAR from the contract.
+ */
+export const claimGas = (asset: string) => (asset === 'near' ? 25n : 45n) * 10n ** 12n;
+const ALLOWANCE_PER_TGAS = 10n ** 21n; // 0.001 NEAR
+
+/** Remaining allowance on a card's claim key, or null if the key is gone (claimed or cancelled). */
+export async function cardKeyAllowance(publicKey: string): Promise<bigint | null> {
+  try {
+    const k = await provider.viewAccessKey({ accountId: CONTRACT_ID, publicKey });
+    const fc = (k.permission as { FunctionCall?: { allowance?: string | bigint | null } }).FunctionCall;
+    return fc?.allowance != null ? BigInt(fc.allowance) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function claimCard(secret: string, receiverId: string, asset: string) {
+  // Never attach more gas than the key's allowance covers: the network would reject it.
+  // (Cards made before the allowance increase still claim fine into existing accounts.)
+  let gas = claimGas(asset);
+  const left = await cardKeyAllowance(cardPublicKey(secret));
+  if (left !== null) {
+    const fits = (left / ALLOWANCE_PER_TGAS - 1n) * 10n ** 12n;
+    if (fits < gas) gas = fits;
+  }
   const asContract = new Account(CONTRACT_ID, provider, `ed25519:${secret}` as KeyPairString);
-  return asContract.callFunction({ contractId: CONTRACT_ID, methodName: 'claim', args: { receiver_id: receiverId }, gas: 50n * 10n ** 12n });
+  return asContract.callFunction({ contractId: CONTRACT_ID, methodName: 'claim', args: { receiver_id: receiverId }, gas });
 }
 
 export function cardPublicKey(secret: string) {

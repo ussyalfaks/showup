@@ -24,11 +24,16 @@ export default function Claim() {
     setBusy(true);
     setError(null);
     try {
-      await claimCard(secret!, accountId!);
+      await claimCard(secret!, accountId!, c!.asset);
       setDone(true);
       setTimeout(refreshBalance, 2500);
     } catch (e) {
-      setError(errorText(e));
+      const m = (e as { message?: string })?.message ?? String(e);
+      setError(
+        /Exceeded the prepaid gas/i.test(m)
+          ? "This card was made before an update and can't cover setting up a new wallet. Your money is safe: ask the sender to take it back (Gift Cards → Take back) and send a new card."
+          : errorText(e),
+      );
     } finally {
       setBusy(false);
     }

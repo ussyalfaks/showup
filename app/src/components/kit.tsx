@@ -190,6 +190,7 @@ export function errorText(e: unknown) {
   // A new wallet's key isn't on-chain until the wallet first receives NEAR.
   if (/Access key .* does not exist|account .* does not exist|AccountDoesNotExist/i.test(m))
     return "Your wallet isn't activated yet. Add some NEAR first: Me → Testnet faucet, or claim a gift card.";
+  if (/Not enough allowance|does not have enough allowance/i.test(m)) return "This card can't pay for its own claim any more. Ask the sender to take it back (Gift Cards → Take back) and send a new one.";
   if (/NotEnoughBalance|LackBalanceForState|not enough balance/i.test(m)) return "Not enough NEAR in your wallet for this, including the network fee.";
   const kind = m.match(/Smart contract panicked: ([^"\n]+)/);
   return kind ? kind[1] : m.length > 240 ? m.slice(0, 240) + '…' : m;
