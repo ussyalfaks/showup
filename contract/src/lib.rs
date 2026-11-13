@@ -25,7 +25,14 @@ pub const NATIVE: &str = "near";
 const NS: u64 = 1_000_000_000;
 /// Per card: gas allowance for the claim key + key storage + token registration on payout.
 pub const CARD_FEE: u128 = 25_000_000_000_000_000_000_000; // 0.025 NEAR
-const CLAIM_ALLOWANCE: u128 = 20_000_000_000_000_000_000_000; // 0.02 NEAR
+// A limited key's allowance must cover the claim's worst-case cost, which NEAR prices at
+// about 0.001 NEAR per Tgas attached. It is a cap, not a charge: a claim burns ~0.004 NEAR.
+// A NEAR claim to a brand-new implicit account needs ~20 Tgas: the claim (~3.3), the payout
+// callback (8) and account creation (7.2 Tgas execution fee since protocol 88), so 0.03 NEAR.
+const CLAIM_ALLOWANCE: u128 = 30_000_000_000_000_000_000_000; // 0.03 NEAR: NEAR cards, claimed with 25 Tgas
+const CLAIM_ALLOWANCE_FT: u128 = 50_000_000_000_000_000_000_000; // 0.05 NEAR: token cards, claimed with 45 Tgas
+/// Part of the 0.025 NEAR fee returned when a card that never got its tokens is cancelled.
+const UNFUNDED_CANCEL_REFUND: u128 = 20_000_000_000_000_000_000_000; // 0.02 NEAR
 /// Per event, paid by the host: storage for the guest list and records.
 pub const EVENT_FEE: u128 = 50_000_000_000_000_000_000_000; // 0.05 NEAR
 const PAYOUT_RESERVE: u128 = 1_250_000_000_000_000_000_000; // 0.00125 NEAR
@@ -37,6 +44,8 @@ const EARLY_CHECKIN_NS: u64 = 2 * 3_600 * NS;
 const GAS_FT: Gas = Gas::from_tgas(15);
 const GAS_STORAGE: Gas = Gas::from_tgas(10);
 const GAS_CALLBACK: Gas = Gas::from_tgas(15);
+/// Card claims run under the key's allowance, so their callback reserves less (it burns ~1.5 Tgas).
+const GAS_CALLBACK_CLAIM: Gas = Gas::from_tgas(8);
 
 #[derive(BorshStorageKey)]
 #[near(serializers = [borsh])]
@@ -233,7 +242,7 @@ impl ShowUp {
         self.cards_by.insert(creator.clone(), mine);
         emit("card_created", json!({"public_key": pk_string(&public_key), "creator": creator, "asset": asset, "amount": amount, "funded": funded}));
         if funded {
-            self.add_claim_key(public_key);
+            self.add_claim_key(public_key, &asset);
         }
     }
 
@@ -248,7 +257,7 @@ impl ShowUp {
         self.cards.insert(pk.clone(), card.clone());
         emit("card_claimed", json!({"public_key": pk_string(&pk), "receiver": receiver_id, "asset": card.asset, "amount": card.amount}));
         Promise::new(env::current_account_id()).delete_key(pk.clone()).detach();
-        self.payout(&card.asset, &receiver_id, card.amount.0, Refund::Card { public_key: pk })
+        self.payout(&card.asset, &receiver_id, card.amount.0, Refund::Card { public_key: pk }, GAS_CALLBACK_CLAIM)
     }
 
     /// The creator takes back an unclaimed card.
@@ -262,11 +271,11 @@ impl ShowUp {
         emit("card_cancelled", json!({"public_key": pk_string(&public_key)}));
         if was_funded {
             Promise::new(env::current_account_id()).delete_key(public_key).detach();
-            self.payout(&card.asset, &card.creator, card.amount.0, Refund::Cancelled)
+            self.payout(&card.asset, &card.creator, card.amount.0, Refund::Cancelled, GAS_CALLBACK)
         } else {
             self.pending.remove(&format!("card:{}", pk_string(&public_key)));
             // No claim key was ever added: return the gas allowance part of the fee.
-            Promise::new(card.creator).transfer(NearToken::from_yoctonear(CLAIM_ALLOWANCE))
+            Promise::new(card.creator).transfer(NearToken::from_yoctonear(UNFUNDED_CANCEL_REFUND))
         }
     }
 
@@ -465,7 +474,7 @@ impl ShowUp {
         }
         require!(amount > 0, "nothing to withdraw");
         emit("withdrawn", json!({"event_id": event_id, "account": who, "amount": U128(amount)}));
-        self.payout(&e.asset, &who, amount, Refund::Withdrawal { event_id, account: who.clone(), host: as_host })
+        self.payout(&e.asset, &who, amount, Refund::Withdrawal { event_id, account: who.clone(), host: as_host }, GAS_CALLBACK)
     }
 
     // ==================================================================
@@ -488,7 +497,7 @@ impl ShowUp {
             c.funded = true;
             self.cards.insert(pk.clone(), c);
             emit("card_funded", json!({"public_key": pk_str}));
-            self.add_claim_key(pk);
+            self.add_claim_key(pk, token.as_str());
             return PromiseOrValue::Value(U128(0));
         }
         if let Some(id) = v.get("rsvp").and_then(|x| x.as_u64()) {
@@ -523,8 +532,9 @@ impl ShowUp {
             Refund::Card { public_key } => {
                 if let Some(mut c) = self.cards.get(&public_key).cloned() {
                     c.claimed_by = None;
+                    let asset = c.asset.clone();
                     self.cards.insert(public_key.clone(), c);
-                    self.add_claim_key(public_key.clone());
+                    self.add_claim_key(public_key.clone(), &asset);
                     emit("card_claim_failed", json!({"public_key": pk_string(&public_key)}));
                 }
             }
@@ -617,9 +627,10 @@ impl ShowUp {
         }
     }
 
-    fn add_claim_key(&self, pk: PublicKey) {
+    fn add_claim_key(&self, pk: PublicKey, asset: &str) {
+        let allowance = if asset == NATIVE { CLAIM_ALLOWANCE } else { CLAIM_ALLOWANCE_FT };
         Promise::new(env::current_account_id())
-            .add_access_key_allowance(pk, Allowance::limited(NearToken::from_yoctonear(CLAIM_ALLOWANCE)).unwrap(), env::current_account_id(), "claim")
+            .add_access_key_allowance(pk, Allowance::limited(NearToken::from_yoctonear(allowance)).unwrap(), env::current_account_id(), "claim")
             .detach();
     }
 
@@ -658,7 +669,7 @@ impl ShowUp {
         self.rsvps.remove(&format!("tk:{}:{}", id, guest)).expect("call prepare_rsvp first").ticket_key
     }
 
-    fn payout(&self, asset: &str, to: &AccountId, amount: u128, refund: Refund) -> Promise {
+    fn payout(&self, asset: &str, to: &AccountId, amount: u128, refund: Refund, callback_gas: Gas) -> Promise {
         let transfer = if asset == NATIVE {
             Promise::new(to.clone()).transfer(NearToken::from_yoctonear(amount))
         } else {
@@ -667,7 +678,7 @@ impl ShowUp {
                 .function_call("storage_deposit", json!({"account_id": to, "registration_only": true}).to_string().into_bytes(), NearToken::from_yoctonear(PAYOUT_RESERVE), GAS_STORAGE)
                 .function_call("ft_transfer", json!({"receiver_id": to, "amount": U128(amount), "memo": "showup"}).to_string().into_bytes(), NearToken::from_yoctonear(1), GAS_FT)
         };
-        transfer.then(Self::ext(env::current_account_id()).with_static_gas(GAS_CALLBACK).with_unused_gas_weight(0).on_payout(asset.to_string(), U128(amount), refund))
+        transfer.then(Self::ext(env::current_account_id()).with_static_gas(callback_gas).with_unused_gas_weight(0).on_payout(asset.to_string(), U128(amount), refund))
     }
 }
 
