@@ -3,15 +3,34 @@ import { Share, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, H2, Notice, P, Pill, Row, Screen, useLoad } from '@/components/kit';
-import { cardLink, parseCardSecret, view, type Card as CardT } from '@/lib/near';
+import { Button, C, Card, Field, H1, H2, Notice, P, Pill, Row, Screen, confirmDestructive, errorText, useLoad } from '@/components/kit';
+import { call, cardLink, parseCardSecret, view, type Card as CardT } from '@/lib/near';
 import { loadCardSecrets } from '@/lib/cardstore';
 import { fmt } from '@/lib/units';
 import { Who } from '@/components/Who';
 
 export default function Cards() {
-  const { accountId } = useAccount();
+  const { accountId, account, refreshBalance } = useAccount();
   const [code, setCode] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; tone: 'green' | 'red' } | null>(null);
+
+  async function takeBack(c: CardT) {
+    const ok = await confirmDestructive('Take Back This Card?', `The ${fmt(c.amount, c.asset)} returns to your wallet and the link stops working.`, 'Take Back');
+    if (!ok) return;
+    setBusy(c.public_key);
+    setMsg(null);
+    try {
+      await call(account(), 'cancel_card', { public_key: c.public_key }, { tgas: 100 });
+      setMsg({ text: `${fmt(c.amount, c.asset)} is back in your wallet.`, tone: 'green' });
+      await mine.reload();
+      refreshBalance();
+    } catch (e) {
+      setMsg({ text: errorText(e), tone: 'red' });
+    } finally {
+      setBusy(null);
+    }
+  }
   const [open, setOpen] = useState<string | null>(null);
   const mine = useLoad(async () => {
     if (!accountId) return { cards: [] as CardT[], secrets: {} as Record<string, string> };
@@ -36,6 +55,7 @@ export default function Cards() {
       </Card>
 
       <H2>Cards you sent</H2>
+      {msg && <Notice tone={msg.tone} text={msg.text} />}
       {mine.error && <Notice tone="red" text={mine.error} />}
       {mine.data && !mine.data.cards.length && <P muted>None yet.</P>}
       {mine.data?.cards.map((c) => {
@@ -55,6 +75,7 @@ export default function Cards() {
                   <Button variant="secondary" title={open === c.public_key ? 'Hide QR' : 'Show QR'} onPress={() => setOpen(open === c.public_key ? null : c.public_key)} />
                   <Button variant="secondary" title="Share link" onPress={() => Share.share({ message: `You got ${fmt(c.amount, c.asset)}! Claim it in ShowUp: ${cardLink(s)}` })} />
                 </Row>
+                <Button variant="ghost" title="Take back" busy={busy === c.public_key} onPress={() => takeBack(c)} />
                 {open === c.public_key && (
                   <View accessible accessibilityRole="image" accessibilityLabel={`QR code for a ${fmt(c.amount, c.asset)} gift card`} style={{ alignSelf: 'center', padding: 12, backgroundColor: '#fff', borderRadius: 12 }}>
                     <QRCode value={cardLink(s)} size={200} />
