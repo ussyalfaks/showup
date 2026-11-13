@@ -1,0 +1,206 @@
+import { Account, JsonRpcProvider, KeyPair, PublicKey, type KeyPairString } from 'near-api-js';
+import { Buffer } from 'buffer';
+import { CONTRACT_ID, RPC_URL } from './config';
+
+export const provider = new JsonRpcProvider({ url: RPC_URL });
+
+// ---------------------------------------------------------------- types
+
+export interface Card {
+  public_key: string;
+  creator: string;
+  asset: string;
+  amount: string;
+  message: string;
+  funded: boolean;
+  claimed_by: string | null;
+  cancelled: boolean;
+  created_at: string;
+}
+
+export interface Event {
+  id: string;
+  host: string;
+  title: string;
+  location: string;
+  starts_at: string;
+  checkin_until: string;
+  asset: string;
+  deposit: string;
+  capacity: number;
+  policy: 'split_attendees' | 'host';
+  reliable: { min_events: number; min_rate_pct: number; discount_pct: number } | null;
+  checkers: string[];
+  guests: string[];
+  attended: number;
+  cancelled: boolean;
+  settled: boolean;
+  pot: string;
+  share: string;
+  host_take: string;
+  host_withdrawn: boolean;
+}
+
+export interface Rsvp {
+  paid: string;
+  ticket_key: string;
+  checked_in: boolean;
+  withdrawn: boolean;
+  at: string;
+}
+
+export interface Attendance {
+  rsvps: number;
+  attended: number;
+  no_shows: number;
+  hosted: number;
+}
+
+// ---------------------------------------------------------------- reads
+
+export async function view<T>(method: string, args: Record<string, unknown> = {}): Promise<T> {
+  return (await provider.callFunction({ contractId: CONTRACT_ID, method, args })) as T;
+}
+
+/** Balance in yoctoNEAR, or null if the account doesn't exist yet. */
+export async function nearBalance(accountId: string): Promise<bigint | null> {
+  try {
+    const a = (await provider.viewAccount({ accountId, blockQuery: { finality: 'optimistic' } })) as unknown as { amount: bigint | string };
+    return BigInt(a.amount);
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------- writes
+
+export function signer(accountId: string, secretKey: string) {
+  return new Account(accountId, provider, secretKey as KeyPairString);
+}
+
+export async function call<T = unknown>(
+  account: Account,
+  methodName: string,
+  args: Record<string, unknown>,
+  opts: { deposit?: bigint; tgas?: number; contractId?: string } = {},
+): Promise<T> {
+  return (await account.callFunction({
+    contractId: opts.contractId ?? CONTRACT_ID,
+    methodName,
+    args,
+    deposit: opts.deposit ?? 0n,
+    gas: BigInt(opts.tgas ?? 100) * 10n ** 12n,
+  })) as T;
+}
+
+// ---------------------------------------------------------------- keys & accounts
+
+/** A brand-new implicit account: the account id is the hex of the public key. */
+export function newImplicitAccount() {
+  const kp = KeyPair.fromRandom('ed25519');
+  return { accountId: implicitIdFor(kp.getPublicKey().toString()), secretKey: kp.toString() };
+}
+
+export function implicitIdFor(publicKey: string) {
+  return Buffer.from(PublicKey.fromString(publicKey).data).toString('hex');
+}
+
+export function publicKeyOf(secretKey: string) {
+  return KeyPair.fromString(secretKey as KeyPairString).getPublicKey().toString();
+}
+
+// ---------------------------------------------------------------- cards
+
+export const CARD_LINK_PREFIX = 'showup://claim?k=';
+
+/** Fresh key pair for a card. The secret goes in the link, the public key on-chain. */
+export function newCardKey() {
+  const kp = KeyPair.fromRandom('ed25519');
+  return { publicKey: kp.getPublicKey().toString(), secret: kp.toString().replace('ed25519:', '') };
+}
+
+export const cardLink = (secret: string) => `${CARD_LINK_PREFIX}${secret}`;
+
+/** Accepts a full link, a "k=" fragment, or the bare secret. */
+export function parseCardSecret(input: string): string | null {
+  const t = input.trim();
+  const m = t.match(/[?&#]k=([1-9A-HJ-NP-Za-km-z]+)/);
+  const s = m ? m[1] : t.replace(/^ed25519:/, '');
+  return /^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(s) ? s : null;
+}
+
+/** Claim a card with the secret from its link. Signed by the card's own key on the contract account. */
+export async function claimCard(secret: string, receiverId: string) {
+  const asContract = new Account(CONTRACT_ID, provider, `ed25519:${secret}` as KeyPairString);
+  return asContract.callFunction({ contractId: CONTRACT_ID, methodName: 'claim', args: { receiver_id: receiverId }, gas: 50n * 10n ** 12n });
+}
+
+export function cardPublicKey(secret: string) {
+  return KeyPair.fromString(`ed25519:${secret}` as KeyPairString).getPublicKey().toString();
+}
+
+// ---------------------------------------------------------------- check-in QR
+
+/** Must match `checkin_message` in the contract exactly. */
+export const checkinMessage = (eventId: string, guest: string, tsMs: number) =>
+  `showup-checkin:${CONTRACT_ID}:${eventId}:${guest}:${tsMs}`;
+
+export interface CheckinQr {
+  t: 'showup-checkin';
+  e: string;
+  g: string;
+  ts: number;
+  s: string;
+}
+
+/** What the guest's phone shows at the door. Re-signed every few seconds. */
+export function signCheckin(secretKey: string, eventId: string, guest: string, tsMs = Date.now()): CheckinQr {
+  const kp = KeyPair.fromString(secretKey as KeyPairString);
+  const { signature } = kp.sign(new TextEncoder().encode(checkinMessage(eventId, guest, tsMs)));
+  return { t: 'showup-checkin', e: eventId, g: guest, ts: tsMs, s: Buffer.from(signature).toString('base64') };
+}
+
+export function parseCheckin(data: string): CheckinQr | null {
+  try {
+    const v = JSON.parse(data);
+    return v?.t === 'showup-checkin' && typeof v.g === 'string' && typeof v.s === 'string' ? (v as CheckinQr) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------- send
+
+export const ACCOUNT_RE = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
+export const validAccountId = (a: string) => a.length >= 2 && a.length <= 64 && ACCOUNT_RE.test(a);
+
+/** Accepts "bob.near", a 64-hex implicit account, or "near:bob.near" from a QR. */
+export function parseAddress(input: string): string | null {
+  const a = input.trim().replace(/^near:/i, '').toLowerCase();
+  return validAccountId(a) ? a : null;
+}
+
+export async function ftBalance(token: string, accountId: string): Promise<bigint> {
+  try {
+    const r = (await provider.callFunction({ contractId: token, method: 'ft_balance_of', args: { account_id: accountId } })) as string;
+    return BigInt(r ?? '0');
+  } catch {
+    return 0n;
+  }
+}
+
+/** Keep a little NEAR for gas and the account's own storage. */
+export const NEAR_RESERVE = 5n * 10n ** 22n; // 0.05 NEAR
+
+export async function sendNear(account: Account, receiverId: string, amount: bigint) {
+  return account.transfer({ receiverId, amount });
+}
+
+/** Send a NEP-141 token; registers the receiver first if needed (0.00125 NEAR). */
+export async function sendToken(account: Account, token: string, receiverId: string, amount: bigint) {
+  const reg = (await provider.callFunction({ contractId: token, method: 'storage_balance_of', args: { account_id: receiverId } }).catch(() => null)) as unknown;
+  if (!reg) {
+    await account.callFunction({ contractId: token, methodName: 'storage_deposit', args: { account_id: receiverId, registration_only: true }, deposit: 125n * 10n ** 19n, gas: 30n * 10n ** 12n });
+  }
+  return account.callFunction({ contractId: token, methodName: 'ft_transfer', args: { receiver_id: receiverId, amount: amount.toString() }, deposit: 1n, gas: 30n * 10n ** 12n });
+}
