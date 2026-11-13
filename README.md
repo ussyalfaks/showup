@@ -23,10 +23,10 @@ Also by this author at NEAR HACKATHON: **Proof of Delivery**, escrow that pays f
 ## How it works
 
 ### Gift cards (NEAR function-call keys)
-1. The app generates a fresh key pair for the card. `create_card(public_key, asset, amount)` locks the money and adds that public key to the **contract's own account** as a function-call key that can only call `claim`, with a 0.02 NEAR gas allowance.
+1. The app generates a fresh key pair for the card. `create_card(public_key, asset, amount)` locks the money and adds that public key to the **contract's own account** as a function-call key that can only call `claim`. Its gas allowance is 0.03 NEAR for NEAR cards and 0.05 NEAR for USDC cards. That's a spending cap, not a charge: NEAR checks it at about 0.001 NEAR per Tgas attached, and a claim into a brand-new wallet needs about 20 Tgas (creating the account alone costs 7.2 Tgas). A claim actually burns about 0.004 NEAR.
 2. The private key goes into the link: `showup://claim?k=<secret>`.
 3. The recipient opens the link. The app signs `claim(receiver_id)` **with the card's key**, so the recipient pays no gas and needs no funded account. The contract checks `signer_account_pk` is an unclaimed card, deletes the key and pays out. Paying to a new implicit account (64-hex, the app's default) creates the account.
-4. The flat fee is 0.025 NEAR per card, which covers the claim gas. The creator can take back an unclaimed card at any time.
+4. The flat fee is 0.025 NEAR per card, which covers the claim gas. The creator can take back an unclaimed card at any time (**Gift cards → Take back**).
 
 ### Events (on-chain signature check)
 1. The host creates an event with a deposit, capacity, check-in window, where no-show money goes (`split_attendees` or `host`), and an optional reliability discount.
