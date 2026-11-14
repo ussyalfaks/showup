@@ -85,11 +85,49 @@ export interface SharedEvent {
   text: string;
 }
 
-/** Post an event to the public feed (#showup) and record it under `<host>/showup/event/<id>`. */
-export async function shareEvent(account: Account, host: string, eventId: string, text: string) {
+/**
+ * Post an event to the public feed (#showup) and record it under `<host>/showup/event/<id>`.
+ * A cover photo, if any, is saved in the same call.
+ */
+export async function shareEvent(account: Account, host: string, eventId: string, text: string, coverCid?: string | null) {
   const record = JSON.stringify({ contract: CONTRACT_ID, event_id: eventId, text });
-  return postToSocial(account, host, text, { showup: { event: { [eventId]: record } } });
+  const extra: Tree = { event: { [eventId]: record } };
+  if (coverCid) extra.cover = { [eventId]: coverRecord(coverCid) };
+  return postToSocial(account, host, text, { showup: extra });
 }
+
+// ---------------------------------------------------------------- event cover photos
+// The contract's event has no image field, so the cover's IPFS id lives with the host's
+// SocialDB data at `<host>/showup/cover/<id>`, tagged with the contract so a different
+// deployment's event 0 never shows this one's cover.
+
+const coverRecord = (cid: string) => JSON.stringify({ contract: CONTRACT_ID, cid });
+
+/** Save a cover without posting to the feed (~0.01 NEAR storage, the rest refunded). */
+export async function setEventCover(account: Account, host: string, eventId: string, cid: string) {
+  return account.callFunction({
+    contractId: SOCIAL_CONTRACT,
+    methodName: 'set',
+    args: { data: { [host]: { showup: { cover: { [eventId]: coverRecord(cid) } } } }, options: { refund_unused_deposit: true } },
+    deposit: 2n * 10n ** 22n,
+    gas: 30n * 10n ** 12n,
+  });
+}
+
+/** The cover photo's IPFS id for an event, or null. */
+export async function getEventCover(host: string, eventId: string): Promise<string | null> {
+  const data = await socialGet([`${host}/showup/cover/${eventId}`]);
+  const raw = data?.[host]?.showup?.cover?.[eventId];
+  if (!raw) return null;
+  try {
+    const r = JSON.parse(String(raw));
+    return r.contract === CONTRACT_ID && typeof r.cid === 'string' ? r.cid : null;
+  } catch {
+    return null;
+  }
+}
+
+export const coverUrl = (cid: string) => `https://ipfs.near.social/ipfs/${cid}`;
 
 /** Events any host shared, read straight from SocialDB (works on testnet and mainnet, no indexer). */
 export async function getSharedEvents(): Promise<SharedEvent[]> {

@@ -7,7 +7,11 @@ import { C, Card, F, Field, Icon, Notice, Screen, Segmented, Ticket, errorText }
 import { EVENT_FEE, USDC_ID } from '@/lib/config';
 import { call } from '@/lib/near';
 import { fromUnits, toUnits } from '@/lib/units';
-import { SOCIAL_DEPOSIT, eventPostText, shareEvent } from '@/lib/social';
+import { SOCIAL_DEPOSIT, eventPostText, setEventCover, shareEvent } from '@/lib/social';
+import { CoverPicker } from '@/components/CoverPicker';
+
+/** Saving a cover without a NEAR Social post (refunded if unused). */
+const COVER_DEPOSIT = 2n * 10n ** 22n;
 import { StartTimePicker } from '@/components/StartTimePicker';
 import { at, checkinSummary, fmtTime, startProblem, zoneName } from '@/lib/eventTime';
 
@@ -26,6 +30,7 @@ export default function NewEvent() {
   const [split, setSplit] = useState(true);
   const [reliable, setReliable] = useState(true);
   const [share, setShare] = useState(true);
+  const [cover, setCover] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +55,14 @@ export default function NewEvent() {
         policy: split ? 'split_attendees' : 'host',
         reliable: reliable ? { min_events: 3, min_rate_pct: 80, discount_pct: 50 } : null,
       }, { deposit: EVENT_FEE, tgas: 50 });
+      // Sharing and the cover are extras: the event exists either way.
       if (share) {
         setStatus('Event created. Posting it to NEAR Social…');
         const text = eventPostText({ title: title.trim(), location: location.trim(), startsAt: new Date(startsAt), deposit: `${deposit} ${asset === 'near' ? 'NEAR' : 'USDC'}`, split });
-        // Sharing is a bonus: the event exists either way.
-        await shareEvent(account(), accountId!, String(id), text).catch(() => setStatus('Event created (sharing to NEAR Social failed — you can share it from the event page).'));
+        await shareEvent(account(), accountId!, String(id), text, cover).catch(() => setStatus('Event created (sharing to NEAR Social failed — you can share it from the event page).'));
+      } else if (cover) {
+        setStatus('Event created. Saving the cover photo…');
+        await setEventCover(account(), accountId!, String(id), cover).catch(() => setStatus('Event created (the cover photo could not be saved).'));
       }
       router.replace(`/event/${id}`);
     } catch (e) {
@@ -67,7 +75,7 @@ export default function NewEvent() {
   const sym = asset === 'near' ? 'NEAR' : 'USDC';
   const previewWhen = `${start.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtTime(start)}`;
   const startError = startProblem(start);
-  const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : 0n);
+  const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : cover ? COVER_DEPOSIT : 0n);
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
       <Screen back="New event">
@@ -89,6 +97,8 @@ export default function NewEvent() {
           <Text style={{ fontFamily: F.display, fontSize: 22, lineHeight: 26, color: '#FFFFFF' }} numberOfLines={2}>{title.trim() || 'Your event name'}</Text>
           <Text style={{ fontFamily: F.monoRegular, fontSize: 13, color: C.onAccentSoft }}>{previewWhen}</Text>
         </Ticket>
+
+        <CoverPicker cid={cover} onChange={setCover} onError={setError} />
 
         <Field label="Event name" value={title} onChangeText={setTitle} placeholder="NEAR Lagos builders meetup" maxLength={100} />
         <Field label="Where" value={location} onChangeText={setLocation} placeholder="Yaba, Lagos" maxLength={140} />
@@ -136,7 +146,7 @@ export default function NewEvent() {
       {/* Sticky footer */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 14), gap: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{share ? 'Contract storage + NEAR Social post' : 'Contract storage'}</Text>
+          <Text style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{share ? `Contract storage + NEAR Social post${cover ? ' + cover' : ''}` : cover ? 'Contract storage + cover photo' : 'Contract storage'}</Text>
           <Text style={{ fontFamily: F.bodyBold, fontSize: 14, color: C.ink }}>~{fromUnits(cost, 24)} NEAR</Text>
         </View>
         <Pressable

@@ -2,14 +2,12 @@ import { Account, JsonRpcProvider, KeyPair, PublicKey, type KeyPairString } from
 import { Buffer } from 'buffer';
 import { CONTRACT_ID, RPC_BACKUP_URL, RPC_URL } from './config';
 
-/** Transactions use one RPC with its full retry policy, so a send is never repeated on another node. */
-export const provider = new JsonRpcProvider({ url: RPC_URL });
 
 // Reads (views, balances, keys) are safe to repeat. Try the main RPC briefly, then the backup,
 // but only for network trouble: a real answer like "account doesn't exist" is passed straight on.
 const readMain = new JsonRpcProvider({ url: RPC_URL }, { retries: 2, wait: 400, backoff: 2 });
 const readBackup = new JsonRpcProvider({ url: RPC_BACKUP_URL }, { retries: 3, wait: 600, backoff: 2 });
-const NETWORK_TROUBLE = /rate limit|too many requests|\b429\b|RetriesExceeded|Exceeded \d+ attempts|unavailable|Bad Gateway|Internal server error|Timeout error|Network request failed|Failed to fetch|fetch failed/i;
+const NETWORK_TROUBLE = /rate limit|too many requests|\b429\b|RetriesExceeded|Exceeded \d+ attempts|unavailable|Bad Gateway|Internal server error|Timeout error|Network request failed|Failed to fetch|fetch failed|Load failed|ERR_CONNECTION/i;
 export const isNetworkTrouble = (e: unknown) => {
   const err = e as { message?: string; cause?: unknown };
   return NETWORK_TROUBLE.test(String(err?.message ?? e)) || [408, 429, 500, 502, 503].includes(err?.cause as number);
@@ -22,6 +20,33 @@ let mainBlockedUntil = 0;
 export const resetReadCooldown = () => {
   mainBlockedUntil = 0;
 };
+/**
+ * Provider for transactions (and anything else near-api-js asks of it). On network trouble it
+ * repeats the *same* call on the backup RPC. Re-sending the same signed transaction is safe on
+ * NEAR: its nonce means it can execute at most once. Real answers (a contract error, a bad
+ * nonce) are passed straight on and never retried elsewhere.
+ */
+const txMain = new JsonRpcProvider({ url: RPC_URL }, { retries: 3, wait: 500, backoff: 2 });
+const txBackup = new JsonRpcProvider({ url: RPC_BACKUP_URL });
+export const provider: JsonRpcProvider = new Proxy(txMain, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+    if (typeof value !== 'function') return value;
+    return async (...args: unknown[]) => {
+      if (Date.now() >= mainBlockedUntil) {
+        try {
+          return await value.apply(target, args);
+        } catch (e) {
+          if (!isNetworkTrouble(e)) throw e;
+          mainBlockedUntil = Date.now() + COOLDOWN_MS;
+        }
+      }
+      const backup = Reflect.get(txBackup, prop) as (...a: unknown[]) => unknown;
+      return backup.apply(txBackup, args);
+    };
+  },
+});
+
 export async function read<T>(fn: (p: JsonRpcProvider) => Promise<T>): Promise<T> {
   if (Date.now() < mainBlockedUntil) return fn(readBackup);
   try {

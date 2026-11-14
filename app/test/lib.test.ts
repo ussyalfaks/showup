@@ -208,3 +208,35 @@ test('reads fall back to the backup RPC on rate limits, but not on real answers'
     globalThis.fetch = real;
   }
 });
+
+test('transactions: the same call is repeated on the backup RPC only for network trouble', async () => {
+  const { provider, resetReadCooldown } = await import('../src/lib/near.ts');
+  const { RPC_URL, RPC_BACKUP_URL } = await import('../src/lib/config.ts');
+  const real = globalThis.fetch;
+  const hits: string[] = [];
+  const status = { chain_id: 'testnet', sync_info: { latest_block_height: 1 }, version: { version: '1', build: 'x' }, validators: [] };
+  try {
+    resetReadCooldown();
+    globalThis.fetch = (async (url: string) => {
+      hits.push(url);
+      if (url === RPC_URL) return new Response('{"error":"Rate limits exceeded"}', { status: 429 });
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: status }), { status: 200 });
+    }) as typeof fetch;
+    const s = (await provider.viewNodeStatus()) as unknown as { chain_id: string };
+    assert.equal(s.chain_id, 'testnet');
+    assert.ok(hits.includes(RPC_URL) && hits.includes(RPC_BACKUP_URL));
+
+    // a real error answer is passed on; the backup is not contacted
+    resetReadCooldown();
+    hits.length = 0;
+    globalThis.fetch = (async (url: string) => {
+      hits.push(url);
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { name: 'REQUEST_VALIDATION_ERROR', cause: { name: 'PARSE_ERROR', info: {} }, code: -32700, message: 'Parse error', data: 'bad request' } }), { status: 200 });
+    }) as typeof fetch;
+    await assert.rejects(provider.viewNodeStatus());
+    assert.ok(!hits.includes(RPC_BACKUP_URL));
+  } finally {
+    globalThis.fetch = real;
+    resetReadCooldown();
+  }
+});
