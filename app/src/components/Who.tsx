@@ -5,9 +5,9 @@ import { shortId } from '@/lib/units';
 import { C } from './kit';
 
 /** Profiles for a list of accounts (cached; one SocialDB call per new batch). */
-export function useProfiles(accounts: string[]) {
+export function useProfiles(accounts: string[], refresh = 0) {
   const [profiles, setProfiles] = useState<Record<string, Profile | null>>({});
-  const key = accounts.join(',');
+  const key = `${accounts.join(',')}#${refresh}`;
   useEffect(() => {
     let alive = true;
     if (accounts.length) getProfiles(accounts).then((p) => alive && setProfiles(p));

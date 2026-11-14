@@ -39,7 +39,14 @@
           "cameraPermission": "ShowUp uses the camera to scan check-in and gift card QR codes."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ShowUp uses your photos so you can pick a profile picture.",
+          "cameraPermission": "ShowUp uses the camera to scan check-in and gift card QR codes."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

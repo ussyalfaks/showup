@@ -23,6 +23,8 @@ async function socialGet(keys: string[]): Promise<Tree> {
 }
 
 const cache = new Map<string, Profile | null>();
+/** Drop a cached profile so the next read sees a fresh edit. */
+export const forgetProfile = (account: string) => cache.delete(account);
 
 /** Names and images for many accounts in one call. Missing profiles come back as null. */
 export async function getProfiles(accounts: string[]): Promise<Record<string, Profile | null>> {
