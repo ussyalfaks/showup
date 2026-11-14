@@ -1,20 +1,26 @@
 import '@/lib/polyfills';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AccountProvider, useAccount } from '@/context/account';
 import { C } from '@/components/kit';
+import { AnimatedSplash } from '@/components/AnimatedSplash';
 
 SplashScreen.preventAutoHideAsync();
+// The native splash is plain black and the animated splash starts black: no fade needed.
+SplashScreen.setOptions({ fade: false });
 
 function Gate() {
   const { ready } = useAccount();
+  const [splashDone, setSplashDone] = useState(false);
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
   }, [ready]);
   return (
-    <Stack
+    <>
+      <StatusBar style={splashDone ? 'dark' : 'light'} />
+      <Stack
       screenOptions={{
         headerStyle: { backgroundColor: C.paper },
         headerTintColor: C.ink,
@@ -30,14 +36,15 @@ function Gate() {
       <Stack.Screen name="scan" options={{ title: 'Scan', presentation: 'modal' }} />
       <Stack.Screen name="send" options={{ title: 'Send' }} />
       <Stack.Screen name="backup" options={{ title: 'Back up wallet' }} />
-    </Stack>
+      </Stack>
+      <AnimatedSplash start={ready} onDone={() => setSplashDone(true)} />
+    </>
   );
 }
 
 export default function RootLayout() {
   return (
     <AccountProvider>
-      <StatusBar style="dark" />
       <Gate />
     </AccountProvider>
   );
