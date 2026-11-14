@@ -2,6 +2,7 @@ import '@/lib/polyfills';
 import { Stack, router, useRootNavigationState, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
@@ -14,6 +15,14 @@ import { AnimatedSplash } from '@/components/AnimatedSplash';
 SplashScreen.preventAutoHideAsync();
 // The native splash is plain black and the animated splash starts black: no fade needed.
 SplashScreen.setOptions({ fade: false });
+
+// Web: browsers draw their own border/focus outline on <input>/<textarea>. Our fields
+// already sit in a styled wrapper, so drop the browser's to match native.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = 'input, textarea { outline: none !important; border: none; box-shadow: none; }';
+  document.head.appendChild(style);
+}
 
 function Gate() {
   const { ready: accountReady, onboarded } = useAccount();
