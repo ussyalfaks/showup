@@ -63,7 +63,7 @@ Requirements: Rust, Node 22+. For the phone, install **Expo Go** (iOS/Android).
 **2. Run the app logic tests.** Do: `cd app && npm install && npm test`. You should see `pass 8`: amounts, the on-phone wallet, the card link round trip, check-in QR signing, the NEAR Social post format (hashtags and mentions), shout-out tagging, profile images and address parsing for Send.
 
 **3. Open the app on your phone.** Do: `cd app && cp .env.example .env` (it already points at `showup.testnet`), then `npx expo start`, and scan the QR with Expo Go. You should see the ShowUp splash, then onboarding:
-   - **Create a new wallet**, then add your name and photo (**Who's showing up?**), then **Add NEAR to get started** with your address, a QR and the testnet faucet. Tap **I'll do this later** to reach the three tabs: **Events**, **Gift Cards**, **Me**.
+   - **Create a new wallet**, then add your name and photo (**Who's showing up?**), then **Add NEAR to get started** with your address, a QR and the testnet faucet. Tap **I'll do this later** to reach the three tabs: **Events**, **Gift cards**, **Me**.
    - Or **I already have a NEAR wallet**: paste a private key (`ed25519:…`) and tap **Find my account**. The app looks up which account the key belongs to, so you don't type the account name.
    - No phone? `npx expo start --web` runs the same app in a browser.
 
@@ -102,7 +102,7 @@ The script runs the contract tests, builds the wasm and creates `showup.you.test
 ## Disclosure
 - All code was written during the hackathon window (Nov 2026). The app was scaffolded with `create-expo-app`.
 - NEAR Social writes use the same data format as near-social-js, called directly with near-api-js.
-- Libraries: near-sdk, near-api-js, Expo (router, camera, image-picker, secure-store, clipboard), react-native-qrcode-svg, react-native-svg, react-native-get-random-values, buffer, util (polyfill for near-api-js on React Native); ed25519-dalek and tsx for tests.
+- Libraries: near-sdk, near-api-js, Expo (router, camera, image-picker, secure-store, clipboard, font, @expo/vector-icons), Bricolage Grotesque, DM Sans and JetBrains Mono (@expo-google-fonts), @noble/hashes, @noble/curves, @scure/base, react-native-qrcode-svg, react-native-svg, react-native-get-random-values, buffer, util (polyfill for near-api-js on React Native); ed25519-dalek and tsx for tests.
 - The gift-card idea is inspired by existing crypto gift-card apps. No code or branding was used.
 - Much of the code was written with AI assistance (Claude) and reviewed and tested by the author.
 

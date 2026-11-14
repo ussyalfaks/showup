@@ -51,7 +51,7 @@ export function ProfileEditor({
         <View style={{ width: 112, height: 112, borderRadius: 56, backgroundColor: C.accentSoft, borderWidth: 3, borderColor: C.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {shown ? <Image source={{ uri: shown }} style={{ width: 112, height: 112 }} /> : <Text style={{ fontSize: 44, fontWeight: '800', color: C.accentInk }}>{initial}</Text>}
           {uploading && (
-            <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(2,73,39,0.6)', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
               <ActivityIndicator color={C.accent} />
             </View>
           )}

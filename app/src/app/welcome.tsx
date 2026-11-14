@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Image, Linking, Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Chips, Field, Link, Notice, P, QR, Screen, errorText } from '@/components/kit';
+import { Button, C, Card, Chips, F, Field, Link, Notice, P, QR, Screen, Logo, errorText } from '@/components/kit';
 import { ProfileEditor } from '@/components/ProfileEditor';
 import { FAUCET, NETWORK } from '@/lib/config';
 import { nearBalance } from '@/lib/near';
@@ -102,7 +102,7 @@ export default function Welcome() {
       {step === 'import' && (
         <>
           <Back onPress={() => { setStep('intro'); setChoices(null); setError(null); }} />
-          <Text style={{ fontSize: 30, fontWeight: '800', color: C.ink, letterSpacing: -0.6 }}>Use your NEAR wallet</Text>
+          <Text style={{ fontSize: 30, fontFamily: F.display, color: C.ink, letterSpacing: -0.6 }}>Use your NEAR wallet</Text>
           <P muted>Paste the private key from HOT, Meteor, MyNearWallet or the NEAR CLI. We find the account it belongs to.</P>
           <Card>
             <Field label="Private key" value={key} onChangeText={(v) => { setKey(v); setChoices(null); }} placeholder="ed25519:…" secureTextEntry hint="Stored only in this phone's secure storage. Never shared." />
@@ -119,7 +119,7 @@ export default function Welcome() {
 
       {step === 'profile' && (
         <>
-          <Text style={{ fontSize: 30, fontWeight: '800', color: C.ink, letterSpacing: -0.6, textAlign: 'center', marginTop: 12 }}>Who&apos;s showing up?</Text>
+          <Text style={{ fontSize: 30, fontFamily: F.display, color: C.ink, letterSpacing: -0.6, textAlign: 'center', marginTop: 12 }}>Who&apos;s showing up?</Text>
           <P muted>Your name and photo appear on events and gift cards. They&apos;re saved to your public NEAR Social profile.</P>
           <ProfileEditor name={name} onName={setName} imageCid={imageCid} onImageCid={setImageCid} onError={setError} />
           <Button title={name.trim() ? 'Continue' : 'Skip for now'} onPress={saveAndContinue} busy={busy} />
@@ -129,7 +129,7 @@ export default function Welcome() {
 
       {step === 'fund' && accountId && (
         <>
-          <Text style={{ fontSize: 30, fontWeight: '800', color: C.ink, letterSpacing: -0.6 }}>Add NEAR to get started</Text>
+          <Text style={{ fontSize: 30, fontFamily: F.display, color: C.ink, letterSpacing: -0.6 }}>Add NEAR to get started</Text>
           <P muted>Your wallet becomes active the first time it receives NEAR. Claim a gift card from a friend, or send some to your address.</P>
           <Card>
             <QR value={accountId} size={170} label={`QR code of your address, ${accountId}`} />
@@ -159,9 +159,9 @@ function Intro({ busy, onCreate, onImport }: { busy: boolean; onCreate: () => vo
   const insets = useSafeAreaInsets();
   return (
     <View style={{ gap: 28, paddingTop: 40, paddingBottom: insets.bottom }}>
-      <Image source={require('@/assets/images/brand/showup-logo.png')} style={{ width: 190, height: 42 }} resizeMode="contain" accessibilityLabel="ShowUp" />
+      <Logo height={36} />
       <View style={{ gap: 12 }}>
-        <Text style={{ fontSize: 40, lineHeight: 44, fontWeight: '800', color: C.ink, letterSpacing: -1.2 }}>
+        <Text style={{ fontFamily: F.display, fontSize: 42, lineHeight: 46, color: C.ink, letterSpacing: -1.2 }}>
           Show up.{'\n'}
           <Text style={{ color: C.accent }}>Get paid back.</Text>
         </Text>

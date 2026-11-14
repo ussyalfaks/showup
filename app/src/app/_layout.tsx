@@ -3,6 +3,10 @@ import { Stack, router, useRootNavigationState, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import { BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
+import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
+import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
 import { AccountProvider, useAccount } from '@/context/account';
 import { C } from '@/components/kit';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
@@ -12,7 +16,18 @@ SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ fade: false });
 
 function Gate() {
-  const { ready, onboarded } = useAccount();
+  const { ready: accountReady, onboarded } = useAccount();
+  // Fonts load with the splash, so text never flashes in the system face.
+  const [fontsLoaded, fontError] = useFonts({
+    BricolageGrotesque_700Bold,
+    BricolageGrotesque_800ExtraBold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
+  });
+  const ready = accountReady && (fontsLoaded || !!fontError);
   const segments = useSegments();
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
@@ -28,28 +43,20 @@ function Gate() {
   }, [ready, navReady, onboarded, segments]);
   return (
     <>
-      <StatusBar style="light" />
-      <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: C.paper },
-        headerTintColor: C.accentInk,
-        headerTitleStyle: { color: C.ink },
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: C.paper },
-        headerBackButtonDisplayMode: 'minimal',
-      }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      {/* First launch: create or import a wallet. The gate above sends people here until done. */}
-      <Stack.Screen name="welcome" options={{ headerShown: false, animation: 'fade', gestureEnabled: false }} />
-      <Stack.Screen name="event/[id]" options={{ title: 'Event' }} />
-      <Stack.Screen name="event/new" options={{ title: 'New event', presentation: 'modal' }} />
-      <Stack.Screen name="card/new" options={{ title: 'New gift card', presentation: 'modal' }} />
-      {/* Gift card links work before onboarding: the claim screen can create the wallet. */}
-      <Stack.Screen name="claim" options={{ title: 'Claim a card' }} />
-      <Stack.Screen name="scan" options={{ title: 'Scan', presentation: 'modal' }} />
-      <Stack.Screen name="send" options={{ title: 'Send' }} />
-      <Stack.Screen name="backup" options={{ title: 'Back up wallet' }} />
-      <Stack.Screen name="profile" options={{ title: 'Edit profile', presentation: 'modal' }} />
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.paper } }}>
+        <Stack.Screen name="(tabs)" />
+        {/* First launch: create or import a wallet. The gate above sends people here until done. */}
+        <Stack.Screen name="welcome" options={{ animation: 'fade', gestureEnabled: false }} />
+        <Stack.Screen name="event/[id]" />
+        <Stack.Screen name="event/new" />
+        <Stack.Screen name="card/new" />
+        {/* Gift card links work before onboarding: the claim screen can create the wallet. */}
+        <Stack.Screen name="claim" />
+        <Stack.Screen name="scan" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="send" />
+        <Stack.Screen name="backup" />
+        <Stack.Screen name="profile" />
       </Stack>
       <AnimatedSplash start={ready} onDone={() => {}} />
     </>

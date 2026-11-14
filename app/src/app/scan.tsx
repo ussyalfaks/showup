@@ -3,7 +3,8 @@ import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAccount } from '@/context/account';
-import { Button, C, Notice, P, Screen, errorText } from '@/components/kit';
+import { Button, C, F, IconButton, Notice, P, Screen, errorText } from '@/components/kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { call, parseAddress, parseCheckin } from '@/lib/near';
 import { claimParams, parseCardLink } from '@/lib/cardcode';
 import { shortId } from '@/lib/units';
@@ -17,6 +18,7 @@ export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
   const { account } = useAccount();
   const busy = useRef(false);
+  const insets = useSafeAreaInsets();
   const [log, setLog] = useState<{ text: string; tone: 'green' | 'red' }[]>([]);
 
   async function onScan(data: string) {
@@ -54,10 +56,10 @@ export default function Scan() {
     }
   }
 
-  if (!permission) return <Screen padTop={false}><P muted>Checking camera permission…</P></Screen>;
+  if (!permission) return <Screen back="Scan"><P muted>Checking camera permission…</P></Screen>;
   if (!permission.granted) {
     return (
-      <Screen padTop={false}>
+      <Screen back="Scan">
         <P>ShowUp needs the camera to scan {mode === 'claim' ? 'gift card' : mode === 'address' ? 'wallet' : 'ticket'} QR codes.</P>
         <Button title="Allow camera" onPress={requestPermission} />
       </Screen>
@@ -67,8 +69,11 @@ export default function Scan() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => onScan(data)} />
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: 'rgba(2,73,39,0.96)', maxHeight: '45%' }}>
-        <Text style={{ fontWeight: '800', color: C.ink }}>{mode === 'claim' ? 'Point at a gift card QR' : mode === 'address' ? 'Point at their ShowUp “receive” QR' : 'Point at a guest’s ticket QR'}</Text>
+      <View style={{ position: 'absolute', top: insets.top + 12, left: 16 }}>
+        <IconButton icon="x" label="Close scanner" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+      </View>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: 'rgba(255,255,255,0.97)', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '45%' }}>
+        <Text style={{ fontFamily: F.display, color: C.ink }}>{mode === 'claim' ? 'Point at a gift card QR' : mode === 'address' ? 'Point at their ShowUp “receive” QR' : 'Point at a guest’s ticket QR'}</Text>
         {log.slice(0, 5).map((l, i) => <Notice key={i} tone={l.tone} text={l.text} />)}
       </View>
     </View>

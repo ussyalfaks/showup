@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, Notice, P, Screen, errorText, useLoad } from '@/components/kit';
+import { Button, C, Card, F, Field, H1, Notice, P, Screen, errorText, useLoad } from '@/components/kit';
 import { cardPublicKey, claimCard, view, type Card as CardT } from '@/lib/near';
 import { deriveCardKey, normalizeCode, parseCardLink } from '@/lib/cardcode';
 import { fmt, shortId } from '@/lib/units';
@@ -27,13 +27,14 @@ export default function Claim() {
   // and the status (claimed, taken back) stays current while the person types the code.
   const card = useLoad(async () => ({ card: publicKey ? await view<CardT | null>('get_card', { public_key: publicKey }) : null }), [publicKey], 5000);
 
-  if (!link || !publicKey) return <Screen padTop={false}><Notice tone="red" text="This link doesn't contain a valid gift card." /></Screen>;
+  if (!link || !publicKey) return <Screen back="Claim a gift card"><Notice tone="red" text="This link doesn't contain a valid gift card." /></Screen>;
   const c = card.data?.card;
   const needsCode = link.kind === 'coded';
   const codeOk = !needsCode || !!normalizeCode(code);
 
   async function claim() {
     setError(null);
+    let to: string | null = null;
     try {
       // New cards: rebuild the key from the link half and the code, and check it really is
       // this card's key before sending anything, so a typo costs nothing.
@@ -48,12 +49,21 @@ export default function Claim() {
       }
       setBusy('Claiming…');
       // Opened before onboarding: make the wallet now, so claiming stays one tap.
-      const to = hasWallet && accountId ? accountId : await createAccount();
+      to = hasWallet && accountId ? accountId : await createAccount();
       await claimCard(secret, to, c!.asset);
       if (!onboarded) await finishOnboarding();
       setDone(true);
       setTimeout(refreshBalance, 2500);
     } catch (e) {
+      // A claim can land even when the reply is lost: the RPC times out, the library resends,
+      // and the resend fails because the card's one-time key is already gone. Trust the chain.
+      const after = to ? await view<CardT | null>('get_card', { public_key: publicKey }).catch(() => null) : null;
+      if (to && after?.claimed_by === to) {
+        if (!onboarded) await finishOnboarding();
+        setDone(true);
+        setTimeout(refreshBalance, 2500);
+        return;
+      }
       const m = (e as { message?: string })?.message ?? String(e);
       setError(
         /Exceeded the prepaid gas/i.test(m)
@@ -66,7 +76,7 @@ export default function Claim() {
   }
 
   return (
-    <Screen padTop={false}>
+    <Screen back="Claim a gift card">
       {card.error && <Notice tone="red" text={card.error} />}
       {!card.data && !card.error && <P muted>Loading card…</P>}
       {card.data && !c && <Notice text="Looking for this gift card… If it was just created, it appears in a few seconds. If not, check the link with the sender." />}
@@ -74,7 +84,7 @@ export default function Claim() {
         <Card tone={done ? 'green' : 'accent'}>
           <P muted small>A gift from</P>
           <Who account={c.creator} />
-          <Text style={{ fontSize: 40, fontWeight: '900', color: C.ink }}>{fmt(c.amount, c.asset)}</Text>
+          <Text style={{ fontSize: 40, fontFamily: F.display, color: C.ink }}>{fmt(c.amount, c.asset)}</Text>
           {c.message ? <P>“{c.message}”</P> : null}
         </Card>
       )}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, Notice, P, Row, Screen, Segmented, errorText } from '@/components/kit';
+import { Button, C, Card, F, Field, H1, Notice, P, Row, Screen, Segmented, errorText } from '@/components/kit';
 import { Who } from '@/components/Who';
 import { EXPLORER, USDC_ID } from '@/lib/config';
 import { NEAR_RESERVE, ftBalance, nearBalance, parseAddress, sendNear, sendToken } from '@/lib/near';
@@ -54,10 +54,10 @@ export default function Send() {
 
   if (sent) {
     return (
-      <Screen padTop={false}>
+      <Screen back="Send">
         <H1>Sent ✓</H1>
         <Card tone="green">
-          <Text style={{ fontSize: 28, fontWeight: '900', color: C.ink }}>{sent.amount}</Text>
+          <Text style={{ fontSize: 28, fontFamily: F.display, color: C.ink }}>{sent.amount}</Text>
           <Who account={sent.to} />
         </Card>
         {sent.tx && <P muted small>Transaction: {EXPLORER}/txns/{sent.tx}</P>}
@@ -67,7 +67,7 @@ export default function Send() {
   }
 
   return (
-    <Screen padTop={false}>
+    <Screen back="Send">
       <H1>Send</H1>
       <Card>
         <Segmented label="Currency" value={asset} options={[{ value: 'near', label: 'NEAR' }, { value: 'usdc', label: 'USDC' }]} onChange={setAsset} />

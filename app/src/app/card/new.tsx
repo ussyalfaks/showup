@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Share, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, Notice, P, QR, Row, Screen, Segmented, errorText } from '@/components/kit';
+import { Button, C, Card, Chips, F, Field, H1, Icon, Logo, Notice, P, QR, Screen, SectionLabel, Segmented, errorText } from '@/components/kit';
 import { CARD_FEE, CONTRACT_ID, USDC_ID } from '@/lib/config';
 import { call, ftBalance } from '@/lib/near';
 import { saveProtectedCard } from '@/lib/cardstore';
@@ -25,6 +27,7 @@ export default function NewCard() {
   const [link, setLink] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const insets = useSafeAreaInsets();
 
   async function create() {
     setError(null);
@@ -58,41 +61,82 @@ export default function NewCard() {
     }
   }
 
+  const sym = asset === 'near' ? 'NEAR' : 'USDC';
   if (link && code) {
     return (
-      <Screen padTop={false}>
-        <H1>Your card is ready</H1>
-        <P muted>Send the link (or QR) and the redeem code to the person it&apos;s for, in two separate messages. They need both to claim {amount} {asset === 'near' ? 'NEAR' : 'USDC'}.</P>
-        <QR value={link} size={230} label={`QR code for your ${amount} ${asset === 'near' ? 'NEAR' : 'USDC'} gift card`} />
-        <Row>
-          <Button title="Share link" onPress={() => Share.share({ message: `You got ${amount} ${asset === 'near' ? 'NEAR' : 'USDC'}${message ? ` — “${message}”` : ''}! Claim it in ShowUp: ${link}\nI'll send you the redeem code separately.` })} />
-          <Button variant="secondary" title={copied ? 'Copied' : 'Copy link'} onPress={async () => { await Clipboard.setStringAsync(link); setCopied(true); }} />
-        </Row>
-        <RedeemCode code={code} />
-        <P muted small>You can find the link and code again under Gift Cards → Cards you sent, and take the money back while it&apos;s unclaimed.</P>
-      </Screen>
+      <ScrollView style={{ flex: 1, backgroundColor: C.accent }} contentContainerStyle={{ flexGrow: 1 }}>
+        <StatusBar style="light" />
+        {/* Purple stage with the card */}
+        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 36, gap: 22, overflow: 'hidden' }}>
+          <View style={{ position: 'absolute', left: -70, top: 150, width: 140, height: 180, borderRadius: 90, backgroundColor: C.coral }} />
+          <View style={{ position: 'absolute', right: -30, top: 40, width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: 'rgba(255,255,255,0.45)' }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.replace('/cards')} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+              <Icon name="x" size={20} color={C.ink} />
+            </Pressable>
+            <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: '#FFFFFF' }}>New gift card</Text>
+            <View style={{ width: 44 }} />
+          </View>
+          <View style={{ alignSelf: 'center', width: '88%', maxWidth: 340, backgroundColor: '#FFFFFF', borderRadius: 26, padding: 18, gap: 14, shadowColor: '#1B0A6B', shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Logo height={20} />
+              <Text style={{ fontFamily: F.display, fontSize: 28, color: C.ink }}>
+                {amount} <Text style={{ fontSize: 15, color: C.accent }}>{sym}</Text>
+              </Text>
+            </View>
+            <QR value={link} size={180} label={`QR code for your ${amount} ${sym} gift card`} />
+            {message ? <Text style={{ fontFamily: F.bodyBold, fontSize: 16, color: C.ink, textAlign: 'center' }}>“{message}”</Text> : null}
+          </View>
+        </View>
+        {/* Sheet */}
+        <View style={{ flexGrow: 1, backgroundColor: '#FFFFFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 22, paddingBottom: insets.bottom + 28, gap: 16 }}>
+          <H1>Your card is ready</H1>
+          <Text style={{ fontFamily: F.body, fontSize: 15, lineHeight: 22, color: C.muted }}>
+            They need the link (or QR) and the redeem code to claim the {amount} {sym}. Send them in two separate messages, only to the person it&apos;s for.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Button
+              title="Share"
+              icon="share"
+              style={{ flex: 1 }}
+              onPress={() => Share.share({ message: `You got ${amount} ${sym}${message ? ` — “${message}”` : ''}! Claim it in ShowUp: ${link}\nI'll send you the redeem code separately.` })}
+            />
+            <Button variant="secondary" title={copied ? 'Copied' : 'Copy link'} icon={copied ? 'check' : 'copy'} style={{ flex: 1 }} onPress={async () => { await Clipboard.setStringAsync(link); setCopied(true); }} />
+          </View>
+          <RedeemCode code={code} />
+          <Text style={{ fontFamily: F.body, color: C.muted, fontSize: 14, lineHeight: 20 }}>
+            You can take the money back from{' '}
+            <Text accessibilityRole="link" onPress={() => router.replace('/cards')} style={{ color: C.accent, textDecorationLine: 'underline' }}>Cards you sent</Text> while it&apos;s unclaimed.
+          </Text>
+        </View>
+      </ScrollView>
     );
   }
 
   return (
-    <Screen padTop={false}>
-      <H1>New gift card</H1>
+    <Screen back="New gift card">
+      <H1>Send a gift card</H1>
+      <P muted>Pick an amount and add a note. You get a link and a redeem code to send.</P>
       <Card>
-        <Segmented label="Currency" value={asset} options={[{ value: 'near', label: 'NEAR' }, { value: 'usdc', label: 'USDC' }]} onChange={setAsset} />
-        <Field label={`Amount (${asset === 'near' ? 'NEAR' : 'USDC'})`} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="5" />
-        <Field label="Message (optional)" value={message} onChangeText={setMessage} placeholder="Happy birthday! 🎉" maxLength={140} />
-        <Text style={{ color: C.muted, fontSize: 13 }}>
-          Fee: {fromUnits(CARD_FEE, 24)} NEAR flat (pays the claimer&apos;s gas). You have {balance === null ? '0' : fromUnits(balance, 24)} NEAR{asset === 'usdc' ? ` and ${usdc === null ? '…' : fromUnits(usdc, 6)} USDC` : ''}.
-        </Text>
+        <SectionLabel n="01">Amount</SectionLabel>
+        <Segmented soft label="Currency" value={asset} options={[{ value: 'near', label: 'NEAR' }, { value: 'usdc', label: 'USDC' }]} onChange={setAsset} />
+        <Field value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="5" suffix={sym} accessibilityLabel={`Amount in ${sym}`} style={{ fontFamily: F.display, fontSize: 22 }} />
+        <Chips label="Quick amounts" options={['1', '5', '10', '25'].map((v) => ({ value: v, label: `${v} ${sym}` }))} value={amount} onPick={setAmount} />
       </Card>
+      <Card>
+        <SectionLabel n="02">Note</SectionLabel>
+        <Field value={message} onChangeText={setMessage} placeholder="Happy birthday! 🎉" maxLength={140} accessibilityLabel="Message (optional)" hint="Optional. The person sees it when they open the card." />
+      </Card>
+      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 20 }}>
+        Fee {fromUnits(CARD_FEE, 24)} NEAR flat (pays the claimer&apos;s gas). You have {balance === null ? '0' : fromUnits(balance, 24)} NEAR{asset === 'usdc' ? ` and ${usdc === null ? '…' : fromUnits(usdc, 6)} USDC` : ''}.
+      </Text>
       {balance === null && (
-        <Card tone="accent">
-          <P>Your wallet needs some NEAR before it can lock a card. It activates the first time it receives NEAR.</P>
-          <Button variant="secondary" title="Add NEAR" onPress={() => router.push('/me')} />
+        <Card tone="amber">
+          <P small>Your wallet needs some NEAR before it can lock a card. It activates the first time it receives NEAR.</P>
+          <Button compact variant="secondary" title="Add NEAR" onPress={() => router.push('/me')} />
         </Card>
       )}
-      <P muted small>Each card gets a redeem code. Whoever claims it needs the link and the code.</P>
-      <Button title="Create card" onPress={create} busy={busy} disabled={!amount || balance === null} />
+      <Button title="Create card" icon="gift" onPress={create} busy={busy} disabled={!amount || balance === null} />
       {error && <Notice tone="red" text={error} />}
     </Screen>
   );

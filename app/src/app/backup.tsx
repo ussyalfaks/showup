@@ -15,7 +15,7 @@ export default function Backup() {
   };
 
   return (
-    <Screen padTop={false}>
+    <Screen back="Back up wallet">
       <H1>Back up & export</H1>
       <P>Your ShowUp wallet lives only on this phone. Save its private key to keep your money if you lose the phone, or to open the same wallet in HOT, Meteor or MyNearWallet (“Import account → private key”).</P>
       <Notice tone="red" text="Anyone with this key controls your money. Never share it, never paste it into a website you don't trust, and ShowUp will never ask for it." />

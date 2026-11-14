@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Image, Linking, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAccount } from '@/context/account';
 import { useProfiles } from '@/components/Who';
-import { Button, C, Card, H1, H2, Notice, P, QR, Row, Screen, Stat, confirmDestructive, errorText, useLoad } from '@/components/kit';
+import { Button, C, Card, F, H2, IconButton, ListRow, Notice, P, QR, Screen, Ticket, confirmDestructive, errorText, useLoad } from '@/components/kit';
 import { CONTRACT_ID, FAUCET, NETWORK, USDC_ID } from '@/lib/config';
 import { ftBalance, view, type Attendance } from '@/lib/near';
 import { saveProfile, type ProfileInput } from '@/lib/profile';
@@ -13,7 +13,7 @@ import { imageUrl } from '@/lib/social';
 import { fromUnits, shortId } from '@/lib/units';
 
 export default function Me() {
-  const { account, accountId, balance, refreshBalance, resetAccount } = useAccount();
+  const { account, accountId, balance, balanceLoaded, refreshBalance, resetAccount } = useAccount();
   const rec = useLoad(() => (accountId ? view<Attendance>('get_record', { account_id: accountId }) : Promise.resolve(null)), [accountId]);
   const [profileKey, setProfileKey] = useState(0);
   const profiles = useProfiles(accountId ? [accountId] : [], profileKey);
@@ -60,81 +60,122 @@ export default function Me() {
     }
   }
 
+  async function copyAddress() {
+    await Clipboard.setStringAsync(accountId ?? '');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <Screen onRefresh={async () => { await refreshBalance(); await rec.reload(); setProfileKey((k) => k + 1); }}>
-      <H1>Me</H1>
-
       {/* Profile */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: C.accentSoft, borderWidth: 2, borderColor: C.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-          {photo ? <Image source={{ uri: photo }} style={{ width: 72, height: 72 }} accessibilityLabel="Your profile photo" /> : <Text style={{ fontSize: 30, fontWeight: '800', color: C.accentInk }}>{(shownName ?? '?').slice(0, 1).toUpperCase()}</Text>}
-        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={shownName ? 'Edit profile' : 'Set up your profile'} onPress={() => router.push('/profile')}>
+          <View style={{ width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: C.coral }}>
+            {photo ? <Image source={{ uri: photo }} style={{ width: 60, height: 60 }} accessibilityLabel="Your profile photo" /> : <Text style={{ fontFamily: F.display, fontSize: 24, color: C.navy }}>{shownName ? shownName.slice(0, 1).toUpperCase() : '?'}</Text>}
+          </View>
+        </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: C.ink }} numberOfLines={1}>{shownName ?? 'Add your name'}</Text>
-          <Text selectable style={{ fontFamily: 'monospace', fontSize: 13, color: C.muted }}>{shortId(accountId ?? '')} · {NETWORK}</Text>
+          <Text numberOfLines={1} accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 24, lineHeight: 28, color: C.ink }}>{shownName ?? 'Add your name'}</Text>
+          <Text selectable numberOfLines={1} style={{ fontFamily: F.monoRegular, fontSize: 13, color: C.muted }}>{shortId(accountId ?? '')}</Text>
         </View>
-        <Button variant="secondary" title={shownName ? 'Edit' : 'Set up'} onPress={() => router.push('/profile')} />
+        <Button compact title={shownName ? 'Edit' : 'Set up'} onPress={() => router.push('/profile')} />
       </View>
       {draft && (
-        <Card tone="green">
-          <P small>{funded ? 'Your profile is saved on this phone. Publish it so hosts and friends see it.' : "Your profile is saved on this phone. Add NEAR to your wallet, then publish it here."}</P>
-          {funded && <Button title="Publish profile" onPress={publish} busy={busy} />}
+        <Card tone="accent">
+          <P small style={{ color: C.purpleInk }}>{funded ? 'Your profile is saved on this phone. Publish it so hosts and friends see it.' : 'Your profile is saved on this phone. Add NEAR to your wallet, then publish it here.'}</P>
+          {funded && <Button compact variant="brand" title="Publish profile" onPress={publish} busy={busy} />}
         </Card>
       )}
 
-      {/* Wallet */}
-      <Card>
-        <P muted small>Balance</P>
-        <Text style={{ fontSize: 40, fontWeight: '800', color: C.ink, letterSpacing: -1 }}>
-          {funded ? `${fromUnits(balance!, 24)} ` : 'Not active yet'}
-          {funded && <Text style={{ fontSize: 22, color: C.accentInk }}>NEAR</Text>}
+      {/* Balance */}
+      <View style={{ backgroundColor: C.navy, borderRadius: 26, padding: 20, gap: 16, overflow: 'hidden' }}>
+        <View style={{ position: 'absolute', right: -60, bottom: -80, width: 200, height: 200, borderRadius: 100, backgroundColor: C.accent }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontFamily: F.body, color: '#C9C6DB', fontSize: 15 }}>Balance</Text>
+          {NETWORK === 'testnet' && (
+            <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#2B2850' }}>
+              <Text style={{ fontFamily: F.bodyBold, fontSize: 12, letterSpacing: 0.8, color: '#C9C6DB' }}>TESTNET</Text>
+            </View>
+          )}
+        </View>
+        <Text style={{ fontFamily: F.display, fontSize: 46, lineHeight: 50, color: '#FFFFFF', letterSpacing: -1.5 }}>
+          {funded ? fromUnits(balance!, 24) : balanceLoaded ? '0' : '…'} <Text style={{ fontSize: 22, color: C.coral }}>NEAR</Text>
         </Text>
-        {usdc > 0n && <Text style={{ fontSize: 18, fontWeight: '700', color: C.ink }}>{fromUnits(usdc, 6)} USDC</Text>}
-        {!funded && <P muted small>Your wallet lives on this phone. It activates the first time it receives NEAR: claim a gift card, or send some to your address.</P>}
-        <Row>
-          <View style={{ flex: 1 }}><Button title="Send" disabled={!funded} onPress={() => router.push('/send')} /></View>
-          <View style={{ flex: 1 }}><Button variant="secondary" title={receive ? 'Hide' : 'Receive'} onPress={() => setReceive(!receive)} /></View>
-        </Row>
-        {(receive || !funded) && accountId && (
-          <View style={{ gap: 10, paddingTop: 4 }}>
-            <QR value={accountId} size={170} label={`QR code of your address, ${accountId}`} />
-            <Text selectable style={{ fontFamily: 'monospace', fontSize: 12, color: C.muted, textAlign: 'center' }}>{accountId}</Text>
-            <Row>
-              <View style={{ flex: 1 }}><Button variant="secondary" title={copied ? 'Copied' : 'Copy address'} onPress={async () => { await Clipboard.setStringAsync(accountId); setCopied(true); }} /></View>
-              {NETWORK === 'testnet' && <View style={{ flex: 1 }}><Button variant="secondary" title="Testnet faucet" onPress={() => Linking.openURL(FAUCET)} /></View>}
-            </Row>
-          </View>
-        )}
-      </Card>
+        {usdc > 0n && <Text style={{ fontFamily: F.bodyBold, fontSize: 17, color: '#FFFFFF' }}>{fromUnits(usdc, 6)} USDC</Text>}
+        {!funded && balanceLoaded && <Text style={{ fontFamily: F.body, fontSize: 14, lineHeight: 20, color: '#C9C6DB' }}>Your wallet activates the first time it receives NEAR: claim a gift card, or send some to your address.</Text>}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button compact variant="coral" title="Send" disabled={!funded} onPress={() => router.push('/send')} style={{ flex: 1 }} />
+          <Button compact variant="white" title={receive ? 'Hide' : 'Receive'} onPress={() => setReceive(!receive)} style={{ flex: 1, borderWidth: 0 }} />
+          {NETWORK === 'testnet' && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Faucet"
+              onPress={() => Linking.openURL(FAUCET)}
+              style={({ pressed }) => ({ flex: 1, minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}>
+              <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: '#FFFFFF' }}>Faucet</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+      {receive && accountId && <QR value={accountId} size={180} label={`QR code of your address, ${accountId}`} />}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 18, padding: 6, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
+        <Text selectable numberOfLines={1} style={{ flex: 1, fontFamily: F.monoRegular, fontSize: 13, color: C.mutedInk }}>{accountId}</Text>
+        <IconButton round icon={copied ? 'check' : 'copy'} label={copied ? 'Address copied' : 'Copy address'} tone="soft" onPress={copyAddress} />
+      </View>
 
       {/* Reliability */}
       <H2>Do I show up?</H2>
-      <Row>
-        <Stat value={rate === null ? '–' : `${rate}%`} label="reliability" />
-        <Stat value={r?.attended ?? '–'} label="showed up" />
-        <Stat value={r?.no_shows ?? '–'} label="no-shows" />
-        <Stat value={r?.hosted ?? '–'} label="hosted" />
-      </Row>
-      <P muted small>Public and on-chain. Hosts can give reliable people a lower deposit.</P>
+      <Ticket
+        stubWidth={104}
+        stub={
+          <View style={{ alignItems: 'center', gap: 4 }} accessible accessibilityLabel={rate === null ? 'No reliability score yet' : `Reliability ${rate} percent`}>
+            <Text style={{ fontFamily: F.display, fontSize: 28, color: rate === null ? C.muted : C.accent }}>{rate === null ? '—' : `${rate}%`}</Text>
+            <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: C.muted }}>Reliability</Text>
+          </View>
+        }>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingRight: 4 }}>
+          <MiniStat value={r?.attended ?? 0} label="Showed up" />
+          <MiniStat value={r?.no_shows ?? 0} label="No-shows" />
+          <MiniStat value={r?.hosted ?? 0} label="Hosted" />
+        </View>
+      </Ticket>
+      <Text style={{ fontFamily: F.body, fontSize: 14, lineHeight: 20, color: C.muted, paddingHorizontal: 4 }}>
+        {rate !== null && done >= 3 && rate >= 80 ? 'Public and on-chain. Hosts can give you half-price deposits.' : 'Public and on-chain. Hosts can give reliable people a lower deposit.'}
+      </Text>
 
       {/* Account */}
       <H2>Wallet</H2>
-      <Button variant="secondary" title="Back up / export key" onPress={() => router.push('/backup')} />
-      <Button
-        variant="ghost"
-        title="Remove wallet from this phone"
-        onPress={async () => {
-          const held = balance && balance > 0n ? `${fromUnits(balance, 24)} NEAR${usdc > 0n ? ` and ${fromUnits(usdc, 6)} USDC` : ''}` : null;
-          const ok = await confirmDestructive(
-            'Remove This Wallet?',
-            `This deletes the private key for ${shortId(accountId ?? '')} from this phone. ${held ? `The ${held} in it will be lost` : 'Anything sent to it later will be lost'} unless you saved the key under Back up / export. You can then create or import another wallet.`,
-            'Remove Wallet',
-          );
-          if (ok) await resetAccount();
-        }}
-      />
+      <Card style={{ padding: 0, gap: 0 }}>
+        <ListRow icon="key" title="Back up / export key" onPress={() => router.push('/backup')} right={<View accessibilityLabel="Recommended" style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: C.coral }} />} />
+        <View style={{ height: 1, backgroundColor: C.line }} />
+        <ListRow
+          icon="trash-2"
+          tone="red"
+          title="Remove wallet from this phone"
+          onPress={async () => {
+            const held = balance && balance > 0n ? `${fromUnits(balance, 24)} NEAR${usdc > 0n ? ` and ${fromUnits(usdc, 6)} USDC` : ''}` : null;
+            const ok = await confirmDestructive(
+              'Remove This Wallet?',
+              `This deletes the private key for ${shortId(accountId ?? '')} from this phone. ${held ? `The ${held} in it will be lost` : 'Anything sent to it later will be lost'} unless you saved the key under Back up / export. You can then create or import another wallet.`,
+              'Remove Wallet',
+            );
+            if (ok) await resetAccount();
+          }}
+        />
+      </Card>
       {msg && <Notice tone={msg.tone} text={msg.text} />}
-      <P muted small>Contract {CONTRACT_ID}</P>
+      <Text style={{ fontFamily: F.monoRegular, fontSize: 12, color: C.muted }}>Contract · {CONTRACT_ID}</Text>
     </Screen>
   );
 }
+
+function MiniStat({ value, label }: { value: number; label: string }) {
+  return (
+    <View style={{ gap: 2 }}>
+      <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{value}</Text>
+      <Text style={{ fontFamily: F.body, fontSize: 13, color: C.muted }}>{label}</Text>
+    </View>
+  );
+}
+

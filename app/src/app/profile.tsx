@@ -46,7 +46,7 @@ export default function EditProfile() {
   }
 
   return (
-    <Screen padTop={false}>
+    <Screen back="Edit profile">
       <ProfileEditor name={name} onName={setName} imageCid={imageCid} onImageCid={setImageCid} onError={setError} />
       <Button title={funded ? 'Save profile' : 'Save on this phone'} onPress={save} busy={busy} disabled={!name.trim()} />
       <P small muted>

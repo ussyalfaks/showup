@@ -7,7 +7,7 @@ import { provider } from './near';
 export const SOCIAL_CONTRACT = process.env.EXPO_PUBLIC_SOCIAL_CONTRACT ?? (NETWORK === 'mainnet' ? 'social.near' : 'v1.social08.testnet');
 export const SOCIAL_WEB = NETWORK === 'mainnet' ? 'https://near.social' : 'https://test.near.social';
 /** Covers first-time storage on SocialDB; the unused part is refunded. */
-const SOCIAL_DEPOSIT = 5n * 10n ** 22n; // 0.05 NEAR
+export const SOCIAL_DEPOSIT = 5n * 10n ** 22n; // 0.05 NEAR
 
 export interface Profile {
   name?: string;

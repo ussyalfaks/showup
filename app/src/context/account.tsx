@@ -23,6 +23,8 @@ interface AccountState {
   publicKey: string | null;
   /** yoctoNEAR; null = account not on-chain yet (send it some NEAR or claim a card). */
   balance: bigint | null;
+  /** False until the first balance check finishes, so "not activated" isn't shown while loading. */
+  balanceLoaded: boolean;
   refreshBalance: () => Promise<void>;
   createAccount: () => Promise<string>;
   importAccount: (accountId: string, secretKey: string) => Promise<void>;
@@ -38,6 +40,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
   const [balance, setBalance] = useState<bigint | null>(null);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -52,6 +55,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const refreshBalance = useCallback(async () => {
     setBalance(stored ? await nearBalance(stored.accountId) : null);
+    setBalanceLoaded(true);
   }, [stored]);
 
   const createAccount = useCallback(async () => {
@@ -97,6 +101,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       secretKey: stored?.secretKey ?? null,
       publicKey: stored ? KeyPair.fromString(stored.secretKey as KeyPairString).getPublicKey().toString() : null,
       balance,
+      balanceLoaded,
       refreshBalance,
       createAccount,
       importAccount,
@@ -106,7 +111,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return signer(stored.accountId, stored.secretKey);
       },
     }),
-    [ready, stored, onboarded, balance, finishOnboarding, refreshBalance, createAccount, importAccount, resetAccount],
+    [ready, stored, onboarded, balance, balanceLoaded, finishOnboarding, refreshBalance, createAccount, importAccount, resetAccount],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Switch, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Chips, Field, H1, Notice, P, Screen, Segmented, errorText } from '@/components/kit';
+import { C, Card, Chips, F, Field, Icon, Notice, Screen, Segmented, Ticket, errorText } from '@/components/kit';
 import { EVENT_FEE, USDC_ID } from '@/lib/config';
 import { call } from '@/lib/near';
 import { fromUnits, toUnits } from '@/lib/units';
-import { eventPostText, shareEvent } from '@/lib/social';
+import { SOCIAL_DEPOSIT, eventPostText, shareEvent } from '@/lib/social';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** Date -> "YYYY-MM-DD HH:MM" in local time (the field's format). */
@@ -36,7 +37,7 @@ function startPresets() {
     { value: toField(nextSaturday()), label: 'Saturday 2 PM' },
   ];
 }
-const CHECKIN = [15, 30, 60, 90, 120].map((m) => ({ value: m, label: m < 60 ? `${m} min` : `${m / 60} h` }));
+const CHECKIN = [15, 30, 60, 90, 120].map((m) => ({ value: m, label: m < 60 ? `${m}m` : `${m / 60}h` }));
 const ASSETS = [{ value: 'near' as const, label: 'NEAR' }, { value: 'usdc' as const, label: 'USDC' }];
 
 /** "YYYY-MM-DD HH:MM" in local time -> ms */
@@ -61,6 +62,7 @@ export default function NewEvent() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   async function create() {
     setError(null);
@@ -94,41 +96,113 @@ export default function NewEvent() {
     }
   }
 
+  const sym = asset === 'near' ? 'NEAR' : 'USDC';
+  let previewWhen = 'Pick a start time';
+  try {
+    const d = new Date(parseLocal(when));
+    previewWhen = `${d.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+  } catch {
+    /* typing in progress */
+  }
+  const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : 0n);
   return (
-    <Screen padTop={false}>
-      <H1>Host an event</H1>
-      <Card>
-        <Field label="Name" value={title} onChangeText={setTitle} placeholder="NEAR Lagos builders meetup" maxLength={100} />
+    <View style={{ flex: 1, backgroundColor: C.paper }}>
+      <Screen back="New event">
+        {/* Ticket preview */}
+        <Ticket
+          stubRight
+          stubWidth={86}
+          bg={C.accent}
+          border={C.accent}
+          notch={C.paper}
+          stub={
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontFamily: F.display, fontSize: 26, color: '#FFFFFF' }}>{deposit || '0'}</Text>
+              <Text style={{ fontFamily: F.bodyBold, fontSize: 12, color: C.onAccentSoft }}>{sym}</Text>
+            </View>
+          }>
+          <Text style={{ fontFamily: F.bodyBold, fontSize: 11, letterSpacing: 1.4, color: C.onAccentSoft }}>TICKET PREVIEW</Text>
+          <Text style={{ fontFamily: F.display, fontSize: 22, lineHeight: 26, color: '#FFFFFF' }} numberOfLines={2}>{title.trim() || 'Your event name'}</Text>
+          <Text style={{ fontFamily: F.monoRegular, fontSize: 13, color: C.onAccentSoft }}>{previewWhen}</Text>
+        </Ticket>
+
+        <Field label="Event name" value={title} onChangeText={setTitle} placeholder="NEAR Lagos builders meetup" maxLength={100} />
         <Field label="Where" value={location} onChangeText={setLocation} placeholder="Yaba, Lagos" maxLength={140} />
-        <Field label="Starts (local time)" value={when} onChangeText={setWhen} placeholder="2026-11-20 18:00" hint="Pick one below or type YYYY-MM-DD HH:MM. Check-in opens 2 hours before." />
-        <Chips label="Start time presets" options={startPresets()} value={when} onPick={setWhen} />
-        <Text style={{ fontSize: 13, fontWeight: '600', color: C.ink, marginTop: 6 }}>Check-in stays open after the start for</Text>
-        <Chips label="Check-in window" options={CHECKIN} value={checkin} onPick={setCheckin} />
-      </Card>
-      <Card>
-        <Segmented label="Deposit currency" value={asset} options={ASSETS} onChange={setAsset} />
-        <Field label={`Deposit per guest (${asset === 'near' ? 'NEAR' : 'USDC'})`} value={deposit} onChangeText={setDeposit} keyboardType="decimal-pad" />
-        <Field label="Capacity" value={capacity} onChangeText={setCapacity} keyboardType="number-pad" hint="Up to 150 guests." />
-        <ToggleRow label="No-shows' deposits go to the people who came" hint={split ? 'Showing up pays.' : 'Off: the deposits go to you, the host.'} value={split} onChange={setSplit} />
-        <ToggleRow label="Half price for reliable guests" hint="3+ events with 80%+ attendance pay 50% of the deposit." value={reliable} onChange={setReliable} />
-        <ToggleRow label="Share on NEAR Social" hint="Posts it to the public #showup feed so people can find it (one-time ~0.05 NEAR storage, unused part refunded)." value={share} onChange={setShare} />
-      </Card>
-      <P muted small>Hosting costs {fromUnits(EVENT_FEE, 24)} NEAR (contract storage). You never hold guests&apos; money — the contract does.</P>
-      <Button title="Create event" onPress={create} busy={busy} />
-      {status && <Notice text={status} />}
-      {error && <Notice tone="red" text={error} />}
-    </Screen>
+
+        <View style={{ gap: 10 }}>
+          <Text style={labelStyle}>Starts</Text>
+          <Chips label="Start time presets" options={startPresets()} value={when} onPick={setWhen} />
+          <Field icon="clock" mono value={when} onChangeText={setWhen} placeholder="2026-11-20 18:00" accessibilityLabel="Start time, YYYY-MM-DD HH:MM" />
+          <Text style={{ fontFamily: F.body, color: C.muted, fontSize: 13 }}>Or type a time (YYYY-MM-DD HH:MM). Check-in opens 2 h before.</Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <Text style={labelStyle}>Check-in stays open after the start for</Text>
+          <Segmented label="Check-in window" value={String(checkin)} options={CHECKIN.map((o) => ({ value: String(o.value), label: o.label }))} onChange={(v) => setCheckin(Number(v))} />
+        </View>
+
+        <Card style={{ gap: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <Text style={labelStyle}>Deposit</Text>
+            <View style={{ width: 160 }}>
+              <Segmented soft label="Deposit currency" value={asset} options={ASSETS} onChange={setAsset} />
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Field filled label="Per guest" value={deposit} onChangeText={setDeposit} keyboardType="decimal-pad" style={{ fontFamily: F.display, fontSize: 20 }} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field filled label="Capacity (max 150)" value={capacity} onChangeText={setCapacity} keyboardType="number-pad" style={{ fontFamily: F.display, fontSize: 20 }} />
+            </View>
+          </View>
+        </Card>
+
+        <Card style={{ gap: 0, paddingVertical: 4 }}>
+          <ToggleRow label="No-shows fund the people who came" hint={split ? 'Their deposits are split among attendees.' : 'Off: the deposits go to you, the host.'} value={split} onChange={setSplit} />
+          <ToggleRow divider label="Half price for reliable guests" hint="3+ events with 80%+ attendance pay 50%." value={reliable} onChange={setReliable} />
+          <ToggleRow divider label="List on NEAR Social" hint="Posts to the public #showup feed. ~0.05 NEAR storage, unused part refunded." value={share} onChange={setShare} />
+        </Card>
+        {status && <Notice text={status} />}
+        {error && <Notice tone="red" text={error} />}
+        <View style={{ height: 120 }} />
+      </Screen>
+
+      {/* Sticky footer */}
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 14), gap: 10 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Text style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{share ? 'Contract storage + NEAR Social post' : 'Contract storage'}</Text>
+          <Text style={{ fontFamily: F.bodyBold, fontSize: 14, color: C.ink }}>~{fromUnits(cost, 24)} NEAR</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Create event"
+          accessibilityState={{ busy }}
+          disabled={busy}
+          onPress={create}
+          style={({ pressed }) => ({ minHeight: 56, borderRadius: 999, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: pressed || busy ? 0.8 : 1 })}>
+          {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontFamily: F.bodyBold, fontSize: 17, color: '#FFFFFF' }}>Create event</Text>}
+          {!busy && (
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.coral, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="arrow-right" size={15} color={C.navy} />
+            </View>
+          )}
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
-function ToggleRow({ label, hint, value, onChange }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
+const labelStyle = { fontFamily: F.bodyBold, fontSize: 15, color: C.ink };
+
+function ToggleRow({ label, hint, value, onChange, divider }: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void; divider?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: C.ink }}>{label}</Text>
-        <Text style={{ color: C.muted, fontSize: 13 }}>{hint}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopWidth: divider ? 1 : 0, borderTopColor: C.line }}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ fontFamily: F.bodyBold, fontSize: 16, color: C.ink }}>{label}</Text>
+        <Text style={{ fontFamily: F.body, color: C.muted, fontSize: 13, lineHeight: 18 }}>{hint}</Text>
       </View>
-      <Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ true: C.accent }} thumbColor="#fff" />
+      <Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ true: C.accent, false: C.field }} thumbColor="#FFFFFF" ios_backgroundColor={C.field} />
     </View>
   );
 }

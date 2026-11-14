@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, H2, Notice, P, Pill, QR, Row, Screen, Stat, confirmDestructive, errorText, useLoad } from '@/components/kit';
+import { Button, C, Card, F, Field, H1, H2, Notice, P, Pill, QR, Row, Screen, Stat, confirmDestructive, errorText, useLoad } from '@/components/kit';
 import { CONTRACT_ID } from '@/lib/config';
 import { call, signCheckin, view, type Event, type Rsvp } from '@/lib/near';
 import { eventStatus } from '@/lib/status';
@@ -24,10 +24,10 @@ export default function EventScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; tone: 'red' | 'green' | 'muted' } | null>(null);
 
-  if (ev.error) return <Screen padTop={false}><Notice tone="red" text={ev.error} /></Screen>;
-  if (!ev.data) return <Screen padTop={false}><P muted>Loading…</P></Screen>;
+  if (ev.error) return <Screen back="Event"><Notice tone="red" text={ev.error} /></Screen>;
+  if (!ev.data) return <Screen back="Event"><P muted>Loading…</P></Screen>;
   const { event: e, rsvp, myDeposit } = ev.data;
-  if (!e) return <Screen padTop={false}><Notice tone="red" text={`Event ${id} not found.`} /></Screen>;
+  if (!e) return <Screen back="Event"><Notice tone="red" text={`Event ${id} not found.`} /></Screen>;
 
   const now = Date.now() * 1e6;
   const isHost = accountId === e.host;
@@ -68,7 +68,7 @@ export default function EventScreen() {
   const hostOwed = isHost && e.settled && !e.host_withdrawn ? BigInt(e.host_take) : 0n;
 
   return (
-    <Screen padTop={false} onRefresh={ev.reload}>
+    <Screen back="Event" onRefresh={ev.reload}>
       <Pill text={st.text} tone={st.tone} />
       <H1>{e.title}</H1>
       <P muted>
@@ -91,7 +91,7 @@ export default function EventScreen() {
       {/* ---------------- guest */}
       {!isHost && !rsvp && !e.cancelled && !started && (
         <Card tone="accent">
-          <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>Lock {fmt(myDeposit, e.asset)} to RSVP</Text>
+          <Text style={{ fontSize: 18, fontFamily: F.display, color: C.ink }}>Lock {fmt(myDeposit, e.asset)} to RSVP</Text>
           {discounted && <P small>Reliability discount applied — you usually show up. 🙌</P>}
           <P small muted>You get it back when you check in{e.policy === 'split_attendees' ? ', plus a share of the no-shows’ deposits' : ''}.</P>
           <Button title="RSVP" onPress={rsvpNow} busy={busy === 'rsvp'} />
@@ -161,8 +161,8 @@ function Ticket({ eventId, title }: { eventId: string; title: string }) {
   return (
     <View style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
       <View style={{ backgroundColor: C.accent, paddingHorizontal: 18, paddingVertical: 12 }}>
-        <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 1.5, color: C.onAccent }}>ADMIT ONE</Text>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: C.onAccent }} numberOfLines={2}>{title}</Text>
+        <Text style={{ fontFamily: F.mono, fontSize: 12, letterSpacing: 1.5, color: C.onAccent }}>ADMIT ONE</Text>
+        <Text style={{ fontSize: 20, fontFamily: F.display, color: C.onAccent }} numberOfLines={2}>{title}</Text>
       </View>
       <View style={{ alignItems: 'center', padding: 20, gap: 14 }}>
         {payload ? <QR value={payload} size={232} label="Your check-in QR code. Show it to the host at the door." /> : <View style={{ width: 260, height: 260 }} />}
@@ -187,7 +187,7 @@ function HostTools({ e, id, busy, act }: { e: Event; id: string; busy: string | 
   if (e.settled || e.cancelled) return null;
   return (
     <Card>
-      <Text style={{ fontWeight: '800', color: C.ink }}>Host tools</Text>
+      <Text style={{ fontFamily: F.display, color: C.ink }}>Host tools</Text>
       <Field label="Add a door helper (can scan guests)" value={helper} onChangeText={setHelper} placeholder="friend.testnet" />
       <Row>
         <Button variant="secondary" title="Add helper" disabled={!helper} busy={busy === 'helper'} onPress={() => act('helper', () => call(account(), 'add_checker', { event_id: id, account: helper.trim() }, { tgas: 30 }), 'Helper added.')} />

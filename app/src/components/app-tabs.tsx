@@ -1,27 +1,43 @@
-import { NativeTabs } from 'expo-router/native-tabs';
-import { C } from './kit';
+import { Tabs, TabList, TabSlot, TabTrigger, type TabTriggerSlotProps } from 'expo-router/ui';
+import { Pressable, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { C, F, Icon, type IconName } from './kit';
 
-// iOS: SF Symbols, filled when selected (tab-bars.md › Best practices). Android: the PNGs.
+/** Bottom tab bar from the ShowUp design: white, icon over label, purple when selected. Same on iOS, Android and web. */
 export default function AppTabs() {
+  const insets = useSafeAreaInsets();
   return (
-    <NativeTabs
-      backgroundColor={C.paper}
-      indicatorColor={C.accentSoft}
-      tintColor={C.accent}
-      iconColor={{ default: C.muted, selected: C.accent }}
-      labelStyle={{ default: { color: C.muted }, selected: { color: C.accent } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Events</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'ticket', selected: 'ticket.fill' }} src={require('@/assets/images/tabIcons/events.png')} renderingMode="template" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="cards">
-        <NativeTabs.Trigger.Label>Gift Cards</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'gift', selected: 'gift.fill' }} src={require('@/assets/images/tabIcons/cards.png')} renderingMode="template" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="me">
-        <NativeTabs.Trigger.Label>Me</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} src={require('@/assets/images/tabIcons/me.png')} renderingMode="template" />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs>
+      <TabSlot style={{ flex: 1 }} />
+      <TabList asChild>
+        <View style={{ flexDirection: 'row', backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 10), paddingHorizontal: 12 }}>
+          <TabTrigger name="index" href="/" asChild>
+            <TabButton icon="ticket">Events</TabButton>
+          </TabTrigger>
+          <TabTrigger name="cards" href="/cards" asChild>
+            <TabButton icon="gift">Gift cards</TabButton>
+          </TabTrigger>
+          <TabTrigger name="me" href="/me" asChild>
+            <TabButton icon="user">Me</TabButton>
+          </TabTrigger>
+        </View>
+      </TabList>
+    </Tabs>
+  );
+}
+
+function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlotProps & { icon: IconName }) {
+  const { ref: _ref, ...rest } = props as TabTriggerSlotProps & { ref?: unknown };
+  void _ref;
+  const fg = isFocused ? C.accent : C.muted;
+  return (
+    <Pressable
+      {...(rest as object)}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: !!isFocused }}
+      style={({ pressed }) => ({ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 4, opacity: pressed ? 0.7 : 1 })}>
+      <Icon name={icon} size={22} color={fg} />
+      <Text style={{ color: fg, fontSize: 13, fontFamily: isFocused ? F.bodyBold : F.bodyMedium }}>{children}</Text>
+    </Pressable>
   );
 }
