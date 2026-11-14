@@ -42,7 +42,7 @@ export default function Events() {
           accessibilityLabel={balance === null ? 'Add NEAR to your wallet' : `Balance ${fromUnits(balance, 24, 2)} NEAR`}
           onPress={() => router.push('/me')}
           style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, marginLeft: 10, paddingLeft: 14, paddingRight: 6, minHeight: 42, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
-          <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={{ flexShrink: 1, fontFamily: F.bodyBold, fontSize: 15, color: C.ink }}>{balance !== null ? `${fromUnits(balance, 24, 2)} NEAR` : balanceLoaded ? 'Add NEAR' : '… NEAR'}</Text>
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: F.bodyBold, fontSize: 15, color: C.ink }}>{balance !== null ? `${fromUnits(balance, 24, 2)} NEAR` : balanceLoaded ? 'Add NEAR' : '… NEAR'}</Text>
           {/* Wrapped so the pill centres in the chip (Pill pins itself to the top of rows). */}
           {NETWORK === 'testnet' ? <View style={{ justifyContent: 'center' }}><Pill text="TEST" tone="purple" /></View> : <View style={{ width: 8 }} />}
         </Pressable>
@@ -53,10 +53,10 @@ export default function Events() {
         {/* Decoration stays in the corner, behind and clear of the text. */}
         <View pointerEvents="none" style={{ position: 'absolute', right: -46, top: -46, width: 130, height: 130, borderRadius: 65, backgroundColor: C.coral }} />
         <View pointerEvents="none" style={{ position: 'absolute', right: 14, top: 14, width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: '#FFFFFF' }} />
-        <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 32, lineHeight: 35, color: '#FFFFFF', letterSpacing: -1, paddingRight: 64 }}>
+        <Text accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 32, lineHeight: 35, color: '#FFFFFF', letterSpacing: -1, paddingRight: 64 }}>
           Show up. Get paid back.
         </Text>
-        <Text maxFontSizeMultiplier={1.4} style={{ fontFamily: F.body, fontSize: 15, lineHeight: 21, color: C.onAccentSoft }}>
+        <Text style={{ fontFamily: F.body, fontSize: 15, lineHeight: 21, color: C.onAccentSoft }}>
           Lock a small deposit to RSVP. Come, and you get it back plus a share of what the no-shows left behind.
         </Text>
         <Button variant="white" icon="plus" title="Host" accessibilityLabel="Host an event" onPress={() => router.push('/event/new')} style={{ alignSelf: 'flex-start', borderWidth: 0, paddingHorizontal: 26 }} />
@@ -89,7 +89,7 @@ export default function Events() {
               accessibilityState={{ selected: on }}
               onPress={() => setFilter(f.value)}
               style={({ pressed }) => ({ flex: 1, minHeight: 44, paddingHorizontal: 8, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.navy : C.card, borderWidth: 1, borderColor: on ? C.navy : C.line, opacity: pressed ? 0.7 : 1 })}>
-              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.3} style={{ fontFamily: F.bodyBold, fontSize: 15, color: on ? '#FFFFFF' : C.ink }}>{f.value === 'all' && narrow ? 'All' : f.label}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontFamily: F.bodyBold, fontSize: 15, color: on ? '#FFFFFF' : C.ink }}>{f.value === 'all' && narrow ? 'All' : f.label}</Text>
             </Pressable>
           );
         })}

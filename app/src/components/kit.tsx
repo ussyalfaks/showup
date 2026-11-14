@@ -197,7 +197,7 @@ export function Button({
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {icon && <Icon name={icon} size={compact ? 16 : 18} color={fg} />}
-          <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[s.btnText, { color: fg }, compact && { fontSize: 14 }]}>{title}</Text>
+          <Text numberOfLines={1} style={[s.btnText, { color: fg }, compact && { fontSize: 14 }]}>{title}</Text>
         </View>
       )}
     </Pressable>

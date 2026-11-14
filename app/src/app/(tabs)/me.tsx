@@ -177,15 +177,15 @@ function MiniStat({ value, label, inline }: { value: number; label: string; inli
   if (inline) {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-        <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, minWidth: 22, color: C.ink }}>{value}</Text>
-        <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{label}</Text>
+        <Text style={{ fontFamily: F.display, fontSize: 20, minWidth: 22, color: C.ink }}>{value}</Text>
+        <Text style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{label}</Text>
       </View>
     );
   }
   return (
     <View style={{ flex: 1, gap: 2 }}>
-      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{value}</Text>
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.3} style={{ fontFamily: F.body, fontSize: 12, lineHeight: 15, color: C.muted }}>{label}</Text>
+      <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{value}</Text>
+      <Text numberOfLines={2} style={{ fontFamily: F.body, fontSize: 12, lineHeight: 15, color: C.muted }}>{label}</Text>
     </View>
   );
 }

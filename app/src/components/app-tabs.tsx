@@ -37,7 +37,7 @@ function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlotProps 
       accessibilityState={{ selected: !!isFocused }}
       style={({ pressed }) => ({ flex: 1, minHeight: 56, paddingVertical: 4, alignItems: 'center', justifyContent: 'center', gap: 4, opacity: pressed ? 0.7 : 1 })}>
       <Icon name={icon} size={22} color={fg} />
-      <Text numberOfLines={1} maxFontSizeMultiplier={1.25} style={{ color: fg, fontSize: 13, fontFamily: isFocused ? F.bodyBold : F.bodyMedium }}>{children}</Text>
+      <Text numberOfLines={1} style={{ color: fg, fontSize: 13, fontFamily: isFocused ? F.bodyBold : F.bodyMedium }}>{children}</Text>
     </Pressable>
   );
 }
