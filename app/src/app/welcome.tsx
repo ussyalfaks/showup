@@ -11,7 +11,7 @@ import { nearBalance } from '@/lib/near';
 import { accountsForKey, saveProfile } from '@/lib/profile';
 import { clearDraft, saveDraft } from '@/lib/profileDraft';
 import { getProfiles } from '@/lib/social';
-import { parseCardSecret } from '@/lib/near';
+import { claimParams, parseCardLink } from '@/lib/cardcode';
 import { shortId } from '@/lib/units';
 
 type Step = 'intro' | 'import' | 'profile' | 'fund';
@@ -141,9 +141,9 @@ export default function Welcome() {
             <Field label="Got a gift card?" value={code} onChangeText={setCode} placeholder="Paste the link or code" />
             <Button
               title="Open card"
-              disabled={!parseCardSecret(code)}
+              disabled={!parseCardLink(code)}
               // The claim screen finishes onboarding once the card is claimed.
-              onPress={() => router.push({ pathname: '/claim', params: { k: parseCardSecret(code)! } })}
+              onPress={() => router.push({ pathname: '/claim', params: claimParams(parseCardLink(code)!) })}
             />
           </Card>
           <Button variant="ghost" title="I'll do this later" onPress={() => done()} />

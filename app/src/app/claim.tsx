@@ -2,31 +2,54 @@ import { useState } from 'react';
 import { Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, H1, Notice, P, Screen, errorText, useLoad } from '@/components/kit';
-import { cardPublicKey, claimCard, parseCardSecret, view, type Card as CardT } from '@/lib/near';
+import { Button, C, Card, Field, H1, Notice, P, Screen, errorText, useLoad } from '@/components/kit';
+import { cardPublicKey, claimCard, view, type Card as CardT } from '@/lib/near';
+import { deriveCardKey, normalizeCode, parseCardLink } from '@/lib/cardcode';
 import { fmt, shortId } from '@/lib/units';
 import { Who } from '@/components/Who';
 
-/** Opened from a `showup://claim?k=<secret>` link, a scanned QR, or a pasted code. */
+/**
+ * Opened from a card link, a scanned QR, or a pasted link.
+ * New cards: `showup://claim?c=<link half>&p=<public key>` plus a redeem code sent separately.
+ * Older cards: `showup://claim?k=<whole key>`, no code.
+ */
 export default function Claim() {
-  const { k } = useLocalSearchParams<{ k?: string }>();
-  const secret = k ? parseCardSecret(String(k)) : null;
+  const params = useLocalSearchParams<{ k?: string; c?: string; p?: string }>();
+  const link = parseCardLink(params.c && params.p ? `?c=${params.c}&p=${params.p}` : String(params.k ?? ''));
+  const publicKey = link?.kind === 'coded' ? link.publicKey : link?.kind === 'key' ? cardPublicKey(link.secret) : null;
   const { accountId, hasWallet, onboarded, createAccount, finishOnboarding, refreshBalance } = useAccount();
-  const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const card = useLoad(() => (secret ? view<CardT | null>('get_card', { public_key: cardPublicKey(secret) }) : Promise.resolve(null)), [secret]);
+  // Wrapped so "still loading" (data null) and "no such card" (card null) look different.
+  // Re-checked every 5 s: a card opened seconds after it was made can lag behind on the RPC,
+  // and the status (claimed, taken back) stays current while the person types the code.
+  const card = useLoad(async () => ({ card: publicKey ? await view<CardT | null>('get_card', { public_key: publicKey }) : null }), [publicKey], 5000);
 
-  if (!secret) return <Screen padTop={false}><Notice tone="red" text="This link doesn't contain a valid card code." /></Screen>;
-  const c = card.data;
+  if (!link || !publicKey) return <Screen padTop={false}><Notice tone="red" text="This link doesn't contain a valid gift card." /></Screen>;
+  const c = card.data?.card;
+  const needsCode = link.kind === 'coded';
+  const codeOk = !needsCode || !!normalizeCode(code);
 
   async function claim() {
-    setBusy(true);
     setError(null);
     try {
+      // New cards: rebuild the key from the link half and the code, and check it really is
+      // this card's key before sending anything, so a typo costs nothing.
+      let secret: string;
+      if (link!.kind === 'coded') {
+        setBusy('Checking code…');
+        const key = await deriveCardKey(link!.linkSecret, code);
+        if (key.publicKey !== link!.publicKey) throw new Error("That redeem code doesn't match this card. Check it with the sender and try again.");
+        secret = key.secret;
+      } else {
+        secret = link!.secret;
+      }
+      setBusy('Claiming…');
       // Opened before onboarding: make the wallet now, so claiming stays one tap.
       const to = hasWallet && accountId ? accountId : await createAccount();
-      await claimCard(secret!, to, c!.asset);
+      await claimCard(secret, to, c!.asset);
       if (!onboarded) await finishOnboarding();
       setDone(true);
       setTimeout(refreshBalance, 2500);
@@ -38,14 +61,15 @@ export default function Claim() {
           : errorText(e),
       );
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   return (
     <Screen padTop={false}>
       {card.error && <Notice tone="red" text={card.error} />}
-      {card.data === null && !card.error && <P muted>Loading card…</P>}
+      {!card.data && !card.error && <P muted>Loading card…</P>}
+      {card.data && !c && <Notice text="Looking for this gift card… If it was just created, it appears in a few seconds. If not, check the link with the sender." />}
       {c && (
         <Card tone={done ? 'green' : 'accent'}>
           <P muted small>A gift from</P>
@@ -66,12 +90,24 @@ export default function Claim() {
       {c && !done && !c.funded && !c.cancelled && <Notice text="This card is still waiting for its USDC deposit." />}
       {c && !done && c.funded && !c.claimed_by && !c.cancelled && (
         <>
-          <Button title={hasWallet ? 'Claim to my wallet' : 'Create my wallet and claim'} onPress={claim} busy={busy} />
+          {needsCode && (
+            <Field
+              label="Redeem code"
+              value={code}
+              onChangeText={(v) => { setCode(v); setError(null); }}
+              placeholder="K7QM9-XRT4P"
+              autoCapitalize="characters"
+              maxLength={14}
+              hint="The sender gives you this separately from the link."
+            />
+          )}
+          <Button title={busy ?? (hasWallet ? 'Claim to my wallet' : 'Create my wallet and claim')} onPress={claim} busy={!!busy} disabled={!codeOk} />
           <P muted small>
             {hasWallet ? `Goes to ${shortId(accountId ?? '')}. ` : 'We make a wallet on this phone for you. '}No fee, no gas — the card pays for it.
           </P>
         </>
       )}
+      {busy && <P muted small>{busy}</P>}
       {error && <Notice tone="red" text={error} />}
     </Screen>
   );

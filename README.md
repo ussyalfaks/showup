@@ -23,9 +23,9 @@ Also by this author at NEAR HACKATHON: **Proof of Delivery**, escrow that pays f
 ## How it works
 
 ### Gift cards (NEAR function-call keys)
-1. The app generates a fresh key pair for the card. `create_card(public_key, asset, amount)` locks the money and adds that public key to the **contract's own account** as a function-call key that can only call `claim`. Its gas allowance is 0.03 NEAR for NEAR cards and 0.05 NEAR for USDC cards. That's a spending cap, not a charge: NEAR checks it at about 0.001 NEAR per Tgas attached, and a claim into a brand-new wallet needs about 20 Tgas (creating the account alone costs 7.2 Tgas). A claim actually burns about 0.004 NEAR.
-2. The private key goes into the link: `showup://claim?k=<secret>`.
-3. The recipient opens the link. The app signs `claim(receiver_id)` **with the card's key**, so the recipient pays no gas and needs no funded account. The contract checks `signer_account_pk` is an unclaimed card, deletes the key and pays out. Paying to a new implicit account (64-hex, the app's default) creates the account.
+1. The app makes the card's key from two halves: a random secret that goes in the link, and a **redeem code** (10 characters like `K7QM9-XRT4P`) that the sender passes on separately. The key is `ed25519(PBKDF2-SHA256(code, link secret, 100k rounds))`. `create_card(public_key, asset, amount)` locks the money and adds that public key to the **contract's own account** as a function-call key that can only call `claim`. Its gas allowance is 0.03 NEAR for NEAR cards and 0.05 NEAR for USDC cards. That's a spending cap, not a charge: NEAR checks it at about 0.001 NEAR per Tgas attached, and a claim into a brand-new wallet needs about 20 Tgas (creating the account alone costs 7.2 Tgas). A claim actually burns about 0.004 NEAR.
+2. The link is `showup://claim?c=<link secret>&p=<card public key>`. Someone who has the link but not the code can't claim. The code is generated, never chosen, and the slow derivation makes guessing it impractical even though anything stored on-chain is public. Older `?k=` links (no code) still work.
+3. The recipient opens the link and types the code. The app rebuilds the key, checks it matches the card before sending anything (a wrong code costs nothing), then signs `claim(receiver_id)` **with the card's key**, so the recipient pays no gas and needs no funded account. The contract checks `signer_account_pk` is an unclaimed card, deletes the key and pays out. Paying to a new implicit account (64-hex, the app's default) creates the account.
 4. The flat fee is 0.025 NEAR per card, which covers the claim gas. The creator can take back an unclaimed card at any time (**Gift cards → Take back**).
 
 ### Events (on-chain signature check)
@@ -67,7 +67,7 @@ Requirements: Rust, Node 22+. For the phone, install **Expo Go** (iOS/Android).
    - Or **I already have a NEAR wallet**: paste a private key (`ed25519:…`) and tap **Find my account**. The app looks up which account the key belongs to, so you don't type the account name.
    - No phone? `npx expo start --web` runs the same app in a browser.
 
-**4. Send a gift card.** Do: fund the wallet (testnet faucet link on **Me**), then **Gift cards → Create**, enter 1 NEAR and tap **Create card**. You should see a QR and a share link. Open the link on a second phone, or paste it under **Got a card?**, and tap **Claim to my wallet**. The second wallet shows the NEAR, and it paid no gas.
+**4. Send a gift card.** Do: fund the wallet (testnet faucet link on **Me**), then **Gift cards → Create**, enter 1 NEAR and tap **Create card**. You should see a QR, a share link and a **redeem code** like `K7QM9-XRT4P`. Open the link on a second phone, or paste it under **Got a card?**. Type a wrong code and tap **Claim to my wallet**: you should see *That redeem code doesn't match this card* and nothing is sent. Type the right code and claim: the second wallet shows the NEAR, and it paid no gas. On a phone with no wallet the button reads **Create my wallet and claim**.
 
 **5. Send money on.** Do: **Me → Send**, then paste a NEAR address or **Scan their QR** (another phone's **Me** tab), enter an amount and tap **Send**. You should see `Sent ✓`, and the other phone's balance goes up. **Me → Back up / export** shows the private key behind a warning.
 

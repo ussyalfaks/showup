@@ -95,3 +95,47 @@ test('import: a private key finds its accounts, or falls back to its implicit ac
   }
   assert.throws(() => KeyPair.fromString('not-a-key' as KeyPairString));
 });
+
+test('redeem code: generated codes are 10 unambiguous characters', async () => {
+  const { generateCode, normalizeCode, formatCode, CODE_LENGTH } = await import('../src/lib/cardcode.ts');
+  const seen = new Set<string>();
+  for (let i = 0; i < 200; i++) {
+    const c = generateCode();
+    assert.equal(c.length, CODE_LENGTH);
+    assert.match(c, /^[0-9A-HJKMNP-TV-Z]+$/); // no I, L, O, U
+    assert.equal(normalizeCode(formatCode(c).toLowerCase()), c);
+    seen.add(c);
+  }
+  assert.equal(seen.size, 200);
+  assert.equal(normalizeCode('k7qmo-xrtip'), 'K7QM0XRT1P'); // O->0, I->1
+  assert.equal(normalizeCode('K7QM9'), null);
+  assert.equal(normalizeCode('K7QM9-XRT4P!'), 'K7QM9XRT4P');
+});
+
+test('redeem code: the link half plus the code rebuild the card key, and nothing else does', async () => {
+  const { newProtectedCard, deriveCardKey, parseCardLink, claimParams, formatCode } = await import('../src/lib/cardcode.ts');
+  const card = await newProtectedCard();
+  // near-api-js accepts the derived key and agrees on its public key
+  assert.equal(KeyPair.fromString(`ed25519:${card.secret}` as KeyPairString).getPublicKey().toString(), card.publicKey);
+  assert.equal(cardPublicKey(card.secret), card.publicKey);
+  // same code, typed loosely -> same key; a different code -> a different key
+  assert.equal((await deriveCardKey(card.linkSecret, ` ${formatCode(card.code).toLowerCase()} `)).publicKey, card.publicKey);
+  const other = card.code[0] === 'A' ? 'B' + card.code.slice(1) : 'A' + card.code.slice(1);
+  assert.notEqual((await deriveCardKey(card.linkSecret, other)).publicKey, card.publicKey);
+  await assert.rejects(deriveCardKey(card.linkSecret, '123'));
+  // the link carries the public key but not enough to claim
+  const parsed = parseCardLink(card.link);
+  assert.deepEqual(parsed, { kind: 'coded', linkSecret: card.linkSecret, publicKey: card.publicKey });
+  assert.ok(!card.link.includes(card.code) && !card.link.includes(card.secret));
+  assert.deepEqual(claimParams(parsed!), { c: card.linkSecret, p: card.publicKey.replace('ed25519:', '') });
+});
+
+test('redeem code: older links without a code still open', async () => {
+  const { parseCardLink, claimParams } = await import('../src/lib/cardcode.ts');
+  const { secret } = newCardKey();
+  for (const input of [cardLink(secret), secret, `ed25519:${secret}`]) {
+    assert.deepEqual(parseCardLink(input), { kind: 'key', secret });
+  }
+  assert.deepEqual(claimParams({ kind: 'key', secret }), { k: secret });
+  assert.equal(parseCardLink('hello'), null);
+});

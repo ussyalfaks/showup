@@ -4,7 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAccount } from '@/context/account';
 import { Button, C, Notice, P, Screen, errorText } from '@/components/kit';
-import { call, parseAddress, parseCardSecret, parseCheckin } from '@/lib/near';
+import { call, parseAddress, parseCheckin } from '@/lib/near';
+import { claimParams, parseCardLink } from '@/lib/cardcode';
 import { shortId } from '@/lib/units';
 
 /**
@@ -29,8 +30,8 @@ export default function Scan() {
         return;
       }
       if (mode === 'claim') {
-        const k = parseCardSecret(data);
-        if (k) router.replace({ pathname: '/claim', params: { k } });
+        const card = parseCardLink(data);
+        if (card) router.replace({ pathname: '/claim', params: claimParams(card) });
         else setLog((l) => [{ text: 'That QR is not a ShowUp gift card.', tone: 'red' as const }, ...l]);
         return;
       }
