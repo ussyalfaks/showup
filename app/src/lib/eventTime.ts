@@ -44,6 +44,22 @@ export function startProblem(start: Date, now = new Date()): string | null {
   return null;
 }
 
+/** Default length of a new event. */
+export const DEFAULT_LENGTH_MS = 2 * 3600_000;
+
+/** Problem with the chosen end, or null if it's fine. */
+export function endProblem(start: Date, end: Date): string | null {
+  if (end.getTime() <= start.getTime()) return 'The end has to be after the start.';
+  return null;
+}
+
+/** "6:00 PM – 9:00 PM", or "6:00 PM – Sat 1:00 AM" when it ends on another day. */
+export function fmtRange(start: Date, end: Date | null, time: (d: Date) => string = fmtTime): string {
+  if (!end) return time(start);
+  const day = end.toDateString() === start.toDateString() ? '' : `${end.toLocaleDateString('en', { weekday: 'short' })} `;
+  return `${time(start)} – ${day}${time(end)}`;
+}
+
 export const fmtTime = (d: Date) => d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true });
 export const fmtDate = (d: Date) => d.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 

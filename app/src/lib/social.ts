@@ -85,46 +85,68 @@ export interface SharedEvent {
   text: string;
 }
 
-/**
- * Post an event to the public feed (#showup) and record it under `<host>/showup/event/<id>`.
- * A cover photo, if any, is saved in the same call.
- */
-export async function shareEvent(account: Account, host: string, eventId: string, text: string, coverCid?: string | null) {
-  const record = JSON.stringify({ contract: CONTRACT_ID, event_id: eventId, text });
-  const extra: Tree = { event: { [eventId]: record } };
-  if (coverCid) extra.cover = { [eventId]: coverRecord(coverCid) };
-  return postToSocial(account, host, text, { showup: extra });
+/** Event details the contract doesn't store, kept on SocialDB under `<host>/showup/...`. */
+export interface EventExtras {
+  /** IPFS id of the cover photo. */
+  cover?: string | null;
+  /** When the event ends. */
+  endsAt?: Date | null;
 }
 
-// ---------------------------------------------------------------- event cover photos
-// The contract's event has no image field, so the cover's IPFS id lives with the host's
-// SocialDB data at `<host>/showup/cover/<id>`, tagged with the contract so a different
-// deployment's event 0 never shows this one's cover.
+/**
+ * Post an event to the public feed (#showup) and record it under `<host>/showup/event/<id>`.
+ * Any extras (cover photo, end time) are saved in the same call.
+ */
+export async function shareEvent(account: Account, host: string, eventId: string, text: string, extras: EventExtras = {}) {
+  const record = JSON.stringify({ contract: CONTRACT_ID, event_id: eventId, text });
+  return postToSocial(account, host, text, { showup: { event: { [eventId]: record }, ...extrasTree(eventId, extras) } });
+}
 
-const coverRecord = (cid: string) => JSON.stringify({ contract: CONTRACT_ID, cid });
+// ---------------------------------------------------------------- event extras
+// The contract's event has no image or end-time field, so these live with the host's
+// SocialDB data at `<host>/showup/cover/<id>` and `<host>/showup/end/<id>`, tagged with
+// the contract so a different deployment's event 0 never shows this one's details.
 
-/** Save a cover without posting to the feed (~0.01 NEAR storage, the rest refunded). */
-export async function setEventCover(account: Account, host: string, eventId: string, cid: string) {
+function extrasTree(eventId: string, { cover, endsAt }: EventExtras): Tree {
+  const t: Tree = {};
+  if (cover) t.cover = { [eventId]: JSON.stringify({ contract: CONTRACT_ID, cid: cover }) };
+  if (endsAt) t.end = { [eventId]: JSON.stringify({ contract: CONTRACT_ID, ends_at_ms: endsAt.getTime() }) };
+  return t;
+}
+
+/** Save extras without posting to the feed (~0.01 NEAR storage, the rest refunded). */
+export async function setEventExtras(account: Account, host: string, eventId: string, extras: EventExtras) {
   return account.callFunction({
     contractId: SOCIAL_CONTRACT,
     methodName: 'set',
-    args: { data: { [host]: { showup: { cover: { [eventId]: coverRecord(cid) } } } }, options: { refund_unused_deposit: true } },
-    deposit: 2n * 10n ** 22n,
+    args: { data: { [host]: { showup: extrasTree(eventId, extras) } }, options: { refund_unused_deposit: true } },
+    deposit: EXTRAS_DEPOSIT,
     gas: 30n * 10n ** 12n,
   });
 }
 
-/** The cover photo's IPFS id for an event, or null. */
-export async function getEventCover(host: string, eventId: string): Promise<string | null> {
-  const data = await socialGet([`${host}/showup/cover/${eventId}`]);
-  const raw = data?.[host]?.showup?.cover?.[eventId];
-  if (!raw) return null;
-  try {
-    const r = JSON.parse(String(raw));
-    return r.contract === CONTRACT_ID && typeof r.cid === 'string' ? r.cid : null;
-  } catch {
-    return null;
-  }
+/** Attached for `setEventExtras` (unused part refunded). */
+export const EXTRAS_DEPOSIT = 2n * 10n ** 22n;
+
+/** An event's cover photo and end time, where the host saved them. */
+export async function getEventExtras(host: string, eventId: string): Promise<{ cover: string | null; endsAt: Date | null }> {
+  const data = await socialGet([`${host}/showup/cover/${eventId}`, `${host}/showup/end/${eventId}`]);
+  const v = data?.[host]?.showup ?? {};
+  const parse = (raw: unknown) => {
+    if (!raw) return null;
+    try {
+      const r = JSON.parse(String(raw));
+      return r.contract === CONTRACT_ID ? r : null;
+    } catch {
+      return null;
+    }
+  };
+  const c = parse(v.cover?.[eventId]);
+  const e = parse(v.end?.[eventId]);
+  return {
+    cover: typeof c?.cid === 'string' ? c.cid : null,
+    endsAt: typeof e?.ends_at_ms === 'number' ? new Date(e.ends_at_ms) : null,
+  };
 }
 
 export const coverUrl = (cid: string) => `https://ipfs.near.social/ipfs/${cid}`;
@@ -146,8 +168,12 @@ export async function getSharedEvents(): Promise<SharedEvent[]> {
   return out.sort((a, b) => Number(b.eventId) - Number(a.eventId));
 }
 
-export function eventPostText(e: { title: string; location: string; startsAt: Date; deposit: string; split: boolean }) {
-  const when = e.startsAt.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+export function eventPostText(e: { title: string; location: string; startsAt: Date; endsAt?: Date | null; deposit: string; split: boolean }) {
+  let when = e.startsAt.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  if (e.endsAt) {
+    const sameDay = e.endsAt.toDateString() === e.startsAt.toDateString();
+    when += `–${e.endsAt.toLocaleString([], sameDay ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+  }
   return `📍 ${e.title} — ${when}${e.location ? `, ${e.location}` : ''}\n\nRSVP with ${e.deposit}. Show up and get it back${e.split ? ' plus a share of what the no-shows leave behind' : ''}. #showup #near`;
 }
 

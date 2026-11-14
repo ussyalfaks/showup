@@ -12,7 +12,8 @@ import { eventStatus } from '@/lib/status';
 import { fmt, fromUnits, decimalsFor, symbolFor, nsToDate, shortId } from '@/lib/units';
 import { useProfiles } from '@/components/Who';
 import { appLink, shareOrCopy } from '@/lib/links';
-import { coverUrl, eventPostText, getEventCover, imageUrl, postToSocial, shareEvent, shoutOutText, type Profile } from '@/lib/social';
+import { coverUrl, eventPostText, getEventExtras, imageUrl, postToSocial, shareEvent, shoutOutText, type Profile } from '@/lib/social';
+import { fmtRange } from '@/lib/eventTime';
 
 const time = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -29,8 +30,10 @@ export default function EventScreen() {
     return { event, rsvp, myDeposit };
   }, [id, accountId], 10_000);
   const e0 = ev.data?.event;
-  // Cover lives on NEAR Social; loaded once (and again when the screen regains focus).
-  const cover = useLoad(() => (e0 ? getEventCover(e0.host, id).catch(() => null) : Promise.resolve(null)), [e0?.host, id]);
+  // Cover and end time live on NEAR Social; loaded once (and again when the screen regains focus).
+  const extras = useLoad(() => (e0 ? getEventExtras(e0.host, id).catch(() => null) : Promise.resolve(null)), [e0?.host, id]);
+  const cover = extras.data?.cover ?? null;
+  const end = extras.data?.endsAt ?? null;
   const profiles = useProfiles(e0 ? [e0.host, ...e0.guests] : []);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; tone: 'red' | 'green' | 'muted' } | null>(null);
@@ -91,14 +94,14 @@ export default function EventScreen() {
           ? `Check-in closed at ${time(nsToDate(e.checkin_until))}`
           : `RSVPs open · check-in from ${time(new Date(start.getTime() - 2 * 3600_000))}`;
   const shareEventLink = async () => {
-    const r = await shareOrCopy(`${e.title} — ${start.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${time(start)}${e.location ? `, ${e.location}` : ''}. RSVP on ShowUp: ${appLink(`event/${id}`)}`);
+    const r = await shareOrCopy(`${e.title} — ${start.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${fmtRange(start, end, time)}${e.location ? `, ${e.location}` : ''}. RSVP on ShowUp: ${appLink(`event/${id}`)}`);
     if (r === 'copied') setMsg({ text: 'Event link copied. Paste it anywhere.', tone: 'green' });
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
       <ScrollView contentContainerStyle={{ paddingBottom: (canRsvp ? 120 : 32) + insets.bottom }}>
-        <Hero cid={cover.data ?? null} hosting={isHost} onShare={shareEventLink} />
+        <Hero cid={cover} hosting={isHost} onShare={shareEventLink} />
 
         <View style={{ paddingHorizontal: 20, gap: 16, marginTop: -28, width: '100%', maxWidth: 640, alignSelf: 'center' }}>
           {/* Title block */}
@@ -114,7 +117,7 @@ export default function EventScreen() {
               {e.title}
             </Text>
             <Text style={{ fontFamily: F.body, fontSize: 15, color: C.muted }}>
-              {start.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} · {time(start)}
+              {start.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} · {fmtRange(start, end, time)}
             </Text>
           </View>
 
@@ -167,7 +170,7 @@ export default function EventScreen() {
           )}
           {msg && <Notice tone={msg.tone} text={msg.text} />}
 
-          {isHost && <HostTools e={e} id={id} busy={busy} act={act} />}
+          {isHost && <HostTools e={e} id={id} end={end} busy={busy} act={act} />}
 
           {/* ---------------- guest view: how it works, host, who's going */}
           {!isHost && (
@@ -366,7 +369,7 @@ function HostGuests({ e, id, profiles }: { e: Event; id: string; profiles: Recor
   );
 }
 
-function HostTools({ e, id, busy, act }: { e: Event; id: string; busy: string | null; act: (l: string, f: () => Promise<unknown>, ok: string) => Promise<void> }) {
+function HostTools({ e, id, end, busy, act }: { e: Event; id: string; end: Date | null; busy: string | null; act: (l: string, f: () => Promise<unknown>, ok: string) => Promise<void> }) {
   const { account, accountId } = useAccount();
   const [helper, setHelper] = useState('');
   if (e.cancelled) return null;
@@ -387,7 +390,7 @@ function HostTools({ e, id, busy, act }: { e: Event; id: string; busy: string | 
         title: 'Share on NEAR Social',
         key: 'share',
         run: () =>
-          act('share', () => shareEvent(account(), accountId!, id, eventPostText({ title: e.title, location: e.location, startsAt: nsToDate(e.starts_at), deposit: fmt(e.deposit, e.asset), split: e.policy === 'split_attendees' })), 'Posted to the #showup feed on NEAR Social.'),
+          act('share', () => shareEvent(account(), accountId!, id, eventPostText({ title: e.title, location: e.location, startsAt: nsToDate(e.starts_at), endsAt: end, deposit: fmt(e.deposit, e.asset), split: e.policy === 'split_attendees' })), 'Posted to the #showup feed on NEAR Social.'),
       };
   return (
     <Card style={{ gap: 14, padding: 18 }}>

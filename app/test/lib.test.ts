@@ -169,6 +169,19 @@ test('event start time: 12-hour clock, date and time changes, and the 10-minute 
   assert.match(t.checkinSummary(new Date(2026, 10, 20, 23, 30), 60), /closes 12:30 AM \(Sat\)/);
 });
 
+test('event end time: must be after the start, shown as a range', async () => {
+  const t = await import('../src/lib/eventTime.ts');
+  const start = new Date(2026, 10, 20, 18);
+  assert.equal(t.endProblem(start, new Date(2026, 10, 20, 21)), null);
+  assert.ok(t.endProblem(start, start));
+  assert.ok(t.endProblem(start, new Date(2026, 10, 20, 17)));
+  assert.equal(t.fmtRange(start, new Date(2026, 10, 20, 21)), '6:00 PM – 9:00 PM');
+  assert.equal(t.fmtRange(start, new Date(2026, 10, 21, 1)), '6:00 PM – Sat 1:00 AM');
+  assert.equal(t.fmtRange(start, null), '6:00 PM');
+  const post = eventPostText({ title: 'x', location: '', startsAt: start, endsAt: new Date(2026, 10, 20, 21), deposit: '1 NEAR', split: false });
+  assert.match(post, /–/);
+});
+
 test('reads fall back to the backup RPC on rate limits, but not on real answers', async () => {
   const { view, nearBalance, resetReadCooldown } = await import('../src/lib/near.ts');
   const { RPC_URL, RPC_BACKUP_URL } = await import('../src/lib/config.ts');

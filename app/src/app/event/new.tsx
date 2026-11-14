@@ -7,13 +7,10 @@ import { C, Card, F, Field, Icon, Notice, Screen, Segmented, Ticket, errorText }
 import { EVENT_FEE, USDC_ID } from '@/lib/config';
 import { call } from '@/lib/near';
 import { fromUnits, toUnits } from '@/lib/units';
-import { SOCIAL_DEPOSIT, eventPostText, setEventCover, shareEvent } from '@/lib/social';
+import { EXTRAS_DEPOSIT, SOCIAL_DEPOSIT, eventPostText, setEventExtras, shareEvent } from '@/lib/social';
 import { CoverPicker } from '@/components/CoverPicker';
-
-/** Saving a cover without a NEAR Social post (refunded if unused). */
-const COVER_DEPOSIT = 2n * 10n ** 22n;
 import { StartTimePicker } from '@/components/StartTimePicker';
-import { at, checkinSummary, fmtTime, startProblem, zoneName } from '@/lib/eventTime';
+import { DEFAULT_LENGTH_MS, at, checkinSummary, endProblem, fmtRange, startProblem, zoneName } from '@/lib/eventTime';
 
 const CHECKIN = [15, 30, 60, 90, 120].map((m) => ({ value: m, label: m < 60 ? `${m}m` : `${m / 60}h` }));
 const ASSETS = [{ value: 'near' as const, label: 'NEAR' }, { value: 'usdc' as const, label: 'USDC' }];
@@ -23,6 +20,7 @@ export default function NewEvent() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [start, setStart] = useState(() => at(new Date(), 1, 18));
+  const [end, setEnd] = useState(() => new Date(start.getTime() + DEFAULT_LENGTH_MS));
   const [checkin, setCheckin] = useState(90);
   const [asset, setAsset] = useState<'near' | 'usdc'>('near');
   const [deposit, setDeposit] = useState('1');
@@ -43,6 +41,8 @@ export default function NewEvent() {
       if (!title.trim()) throw new Error('Give the event a name');
       const problem = startProblem(start);
       if (problem) throw new Error(problem);
+      const endIssue = endProblem(start, end);
+      if (endIssue) throw new Error(endIssue);
       const startsAt = start.getTime();
       const id = await call<string>(account(), 'create_event', {
         title: title.trim(),
@@ -55,14 +55,15 @@ export default function NewEvent() {
         policy: split ? 'split_attendees' : 'host',
         reliable: reliable ? { min_events: 3, min_rate_pct: 80, discount_pct: 50 } : null,
       }, { deposit: EVENT_FEE, tgas: 50 });
-      // Sharing and the cover are extras: the event exists either way.
+      // The post, cover and end time live on NEAR Social: the event exists either way.
+      const extras = { cover, endsAt: end };
       if (share) {
         setStatus('Event created. Posting it to NEAR Social…');
-        const text = eventPostText({ title: title.trim(), location: location.trim(), startsAt: new Date(startsAt), deposit: `${deposit} ${asset === 'near' ? 'NEAR' : 'USDC'}`, split });
-        await shareEvent(account(), accountId!, String(id), text, cover).catch(() => setStatus('Event created (sharing to NEAR Social failed — you can share it from the event page).'));
-      } else if (cover) {
-        setStatus('Event created. Saving the cover photo…');
-        await setEventCover(account(), accountId!, String(id), cover).catch(() => setStatus('Event created (the cover photo could not be saved).'));
+        const text = eventPostText({ title: title.trim(), location: location.trim(), startsAt: new Date(startsAt), endsAt: end, deposit: `${deposit} ${asset === 'near' ? 'NEAR' : 'USDC'}`, split });
+        await shareEvent(account(), accountId!, String(id), text, extras).catch(() => setStatus('Event created (sharing to NEAR Social failed — you can share it from the event page).'));
+      } else {
+        setStatus(cover ? 'Event created. Saving the cover photo and end time…' : 'Event created. Saving the end time…');
+        await setEventExtras(account(), accountId!, String(id), extras).catch(() => setStatus(`Event created (the ${cover ? 'cover photo and end time' : 'end time'} could not be saved).`));
       }
       router.replace(`/event/${id}`);
     } catch (e) {
@@ -73,9 +74,15 @@ export default function NewEvent() {
   }
 
   const sym = asset === 'near' ? 'NEAR' : 'USDC';
-  const previewWhen = `${start.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtTime(start)}`;
+  const previewWhen = `${start.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtRange(start, end)}`;
   const startError = startProblem(start);
-  const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : cover ? COVER_DEPOSIT : 0n);
+  const endError = endProblem(start, end);
+  const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : EXTRAS_DEPOSIT);
+  // Moving the start keeps the event's length.
+  const changeStart = (d: Date) => {
+    setEnd(new Date(end.getTime() + d.getTime() - start.getTime()));
+    setStart(d);
+  };
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
       <Screen back="New event">
@@ -105,10 +112,16 @@ export default function NewEvent() {
 
         <View style={{ gap: 10 }}>
           <Text style={labelStyle}>Starts</Text>
-          <StartTimePicker value={start} onChange={setStart} invalid={!!startError} />
+          <StartTimePicker value={start} onChange={changeStart} invalid={!!startError} />
           <Text style={{ fontFamily: F.body, color: startError ? C.red : C.muted, fontSize: 13, lineHeight: 18 }}>
             {startError ?? `${checkinSummary(start, checkin)} Times are in your time zone (${zoneName(start)}).`}
           </Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <Text style={labelStyle}>Ends</Text>
+          <StartTimePicker value={end} onChange={setEnd} invalid={!!endError} />
+          {endError && <Text style={{ fontFamily: F.body, color: C.red, fontSize: 13, lineHeight: 18 }}>{endError}</Text>}
         </View>
 
         <View style={{ gap: 10 }}>
@@ -146,16 +159,16 @@ export default function NewEvent() {
       {/* Sticky footer */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 14), gap: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{share ? `Contract storage + NEAR Social post${cover ? ' + cover' : ''}` : cover ? 'Contract storage + cover photo' : 'Contract storage'}</Text>
+          <Text style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{share ? `Contract storage + NEAR Social post${cover ? ' + cover' : ''}` : `Contract storage + end time${cover ? ' + cover' : ''}`}</Text>
           <Text style={{ fontFamily: F.bodyBold, fontSize: 14, color: C.ink }}>~{fromUnits(cost, 24)} NEAR</Text>
         </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Create event"
-          accessibilityState={{ busy, disabled: !!startError }}
-          disabled={busy || !!startError}
+          accessibilityState={{ busy, disabled: !!startError || !!endError }}
+          disabled={busy || !!startError || !!endError}
           onPress={create}
-          style={({ pressed }) => ({ minHeight: 56, borderRadius: 999, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: startError ? 0.45 : pressed || busy ? 0.8 : 1 })}>
+          style={({ pressed }) => ({ minHeight: 56, borderRadius: 999, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: startError || endError ? 0.45 : pressed || busy ? 0.8 : 1 })}>
           {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontFamily: F.bodyBold, fontSize: 17, color: '#FFFFFF' }}>Create event</Text>}
           {!busy && (
             <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.coral, alignItems: 'center', justifyContent: 'center' }}>
