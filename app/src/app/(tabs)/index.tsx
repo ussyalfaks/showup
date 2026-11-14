@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
-import { Button, C, Card, H1, H2, Link, Notice, P, Pill, Row, Screen, useLoad } from '@/components/kit';
+import { Image, Pressable, Text, View } from 'react-native';
+import { Button, C, Card, H2, Link, Notice, P, Pill, Row, Screen, useLoad } from '@/components/kit';
 import { view, type Event } from '@/lib/near';
 import { fmt, nsToDate } from '@/lib/units';
 import { eventStatus } from '@/lib/status';
@@ -17,8 +17,11 @@ export default function Events() {
 
   return (
     <Screen onRefresh={reload}>
-      <H1>ShowUp</H1>
-      <P muted>Lock a small deposit to RSVP. Show up and get it back — plus a share of what the no-shows left behind.</P>
+      <Image source={require('@/assets/images/brand/showup-logo.png')} style={{ width: 150, height: 33, marginTop: 4 }} resizeMode="contain" accessibilityRole="header" accessibilityLabel="ShowUp" />
+      <Text style={{ fontSize: 28, lineHeight: 33, fontWeight: '800', color: C.ink, letterSpacing: -0.6 }}>
+        Show up and <Text style={{ color: C.accent }}>get paid back.</Text>
+      </Text>
+      <P muted>Lock a small deposit to RSVP. Come, and you get it back plus a share of what the no-shows left behind.</P>
       <Button title="+ Host an event" onPress={() => router.push('/event/new')} />
 
       {error && <Notice tone="red" text={`Couldn't load events: ${error}`} />}

@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import QRCode from 'react-native-qrcode-svg';
 
+// ShowUp brand: the splash screen's deep green and the logo's lime. Contrast measured (WCAG):
 export const C = {
-  paper: '#FAF7F2',
-  card: '#FFFFFF',
-  ink: '#141414',
-  muted: '#6E6A63', // 5.0:1 on paper, 4.5:1+ on every soft tint
-  line: '#E6E0D6',
-  mutedInk: '#55514B', // text on `line`: 6.0:1
-  placeholder: '#77736B', // 4.7:1 on white
-  accent: '#FF5A1F', // fills only (switch track, ticket band); never small text: 2.9:1 on paper
-  accentInk: '#B23C0C', // accent-coloured text: 5.1:1 on accentSoft, 5.5:1 on paper
-  accentSoft: '#FFE9DF',
-  green: '#1B7F4B',
-  greenInk: '#13663B', // small text on greenSoft: 6.2:1
-  greenSoft: '#E3F4EA',
-  red: '#B3392F',
-  redSoft: '#FBE7E5',
+  paper: '#024927', // app background (same as the splash)
+  card: '#0B5733', // raised surface
+  input: '#033D21', // text fields, sunk below the card
+  ink: '#F4FFF6', // text: 10.3:1 on paper, 8.4:1 on card
+  muted: '#B8D9C6', // secondary text: 6.9:1 on paper, 5.7:1 on card, 4.7:1 on accentSoft
+  line: '#1E6B45',
+  mutedInk: '#D6EBDD', // text on `line`: 5.2:1
+  placeholder: '#8DB59F', // 5.5:1 on input
+  accent: '#39E75B', // lime: primary buttons, selected states, the ticket band
+  onAccent: '#02331B', // text on lime: 8.6:1
+  accentInk: '#5CF27A', // lime text and links: 7.3:1 on paper, 6.0:1 on card
+  accentSoft: '#14653D', // lime-tinted surface
+  green: '#39E75B',
+  greenInk: '#7BF594', // text on greenSoft: 5.2:1
+  greenSoft: '#14653D',
+  red: '#FFA597', // error text: 5.6:1 on paper, 6.6:1 on redSoft
+  redSoft: '#4D2B24',
 };
 
 export function Screen({ children, onRefresh, padTop = true }: { children: ReactNode; onRefresh?: () => Promise<unknown>; padTop?: boolean }) {
@@ -31,6 +35,9 @@ export function Screen({ children, onRefresh, padTop = true }: { children: React
       refreshControl={
         onRefresh ? (
           <RefreshControl
+            tintColor={C.ink}
+            colors={[C.onAccent]}
+            progressBackgroundColor={C.accent}
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
@@ -63,8 +70,8 @@ export function Card({ children, tone }: { children: ReactNode; tone?: 'accent' 
 }
 
 export function Button({ title, onPress, variant = 'primary', disabled, busy }: { title: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'ghost'; disabled?: boolean; busy?: boolean }) {
-  const bg = variant === 'primary' ? C.ink : variant === 'secondary' ? C.card : 'transparent';
-  const fg = variant === 'primary' ? '#fff' : C.ink;
+  const bg = variant === 'primary' ? C.accent : variant === 'secondary' ? C.card : 'transparent';
+  const fg = variant === 'primary' ? C.onAccent : variant === 'ghost' ? C.accentInk : C.ink;
   return (
     <Pressable
       accessibilityRole="button"
@@ -89,7 +96,7 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
 }
 
 export function Pill({ text, tone = 'muted' }: { text: string; tone?: 'muted' | 'accent' | 'green' | 'red' }) {
-  const map = { muted: [C.line, C.mutedInk], accent: [C.accentSoft, C.accentInk], green: [C.greenSoft, C.greenInk], red: [C.redSoft, C.red] } as const;
+  const map = { muted: [C.line, C.mutedInk], accent: [C.accent, C.onAccent], green: [C.greenSoft, C.greenInk], red: [C.redSoft, C.red] } as const;
   const [bg, fg] = map[tone];
   return (
     <View style={{ backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, alignSelf: 'flex-start' }}>
@@ -104,7 +111,7 @@ export function Row({ children, gap = 10 }: { children: ReactNode; gap?: number 
 
 export function Stat({ value, label }: { value: string | number; label: string }) {
   return (
-    <View style={[s.card, { flex: 1, minWidth: 90, padding: 12 }]}>
+    <View style={[s.card, { flex: 1, minWidth: 72, padding: 12 }]}>
       <Text style={{ fontSize: 22, fontWeight: '800', color: C.ink }}>{value}</Text>
       <Text style={{ fontSize: 12, color: C.muted }}>{label}</Text>
     </View>
@@ -119,10 +126,19 @@ export function Notice({ text, tone = 'muted' }: { text: string; tone?: 'muted' 
   );
 }
 
+/** A QR code on white with a quiet zone, so it scans on the dark theme. */
+export function QR({ value, size, label }: { value: string; size: number; label: string }) {
+  return (
+    <View accessible accessibilityRole="image" accessibilityLabel={label} style={{ alignSelf: 'center', padding: 14, backgroundColor: '#FFFFFF', borderRadius: 16 }}>
+      <QRCode value={value} size={size} />
+    </View>
+  );
+}
+
 /** One choice from a short set (iOS segmented control look). */
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label?: string }) {
   return (
-    <View accessibilityRole="tablist" accessibilityLabel={label} style={{ flexDirection: 'row', backgroundColor: C.line, borderRadius: 12, padding: 3 }}>
+    <View accessibilityRole="tablist" accessibilityLabel={label} style={{ flexDirection: 'row', backgroundColor: C.input, borderRadius: 12, padding: 3 }}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -131,8 +147,8 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.value)}
-            style={({ pressed }) => ({ flex: 1, minHeight: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.card : 'transparent', opacity: pressed && !on ? 0.6 : 1, ...(on ? { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 } : null) })}>
-            <Text style={{ fontSize: 15, fontWeight: on ? '700' : '500', color: on ? C.ink : C.mutedInk }}>{o.label}</Text>
+            style={({ pressed }) => ({ flex: 1, minHeight: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.accent : 'transparent', opacity: pressed && !on ? 0.6 : 1, ...(on ? { shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 } : null) })}>
+            <Text style={{ fontSize: 15, fontWeight: on ? '700' : '500', color: on ? C.onAccent : C.muted }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -153,8 +169,8 @@ export function Chips<T extends string | number>({ options, value, onPick, label
             accessibilityState={{ selected: on }}
             onPress={() => onPick(o.value)}
             hitSlop={4}
-            style={({ pressed }) => ({ minHeight: 36, paddingHorizontal: 14, borderRadius: 999, justifyContent: 'center', borderWidth: 1, borderColor: on ? C.ink : C.line, backgroundColor: on ? C.ink : C.card, opacity: pressed ? 0.7 : 1 })}>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: on ? '#fff' : C.ink }}>{o.label}</Text>
+            style={({ pressed }) => ({ minHeight: 36, paddingHorizontal: 14, borderRadius: 999, justifyContent: 'center', borderWidth: 1, borderColor: on ? C.accent : C.line, backgroundColor: on ? C.accent : C.card, opacity: pressed ? 0.7 : 1 })}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: on ? C.onAccent : C.ink }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -219,12 +235,12 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[], pollMs?: num
 }
 
 const s = StyleSheet.create({
-  h1: { fontSize: 30, fontWeight: '800', color: C.ink, letterSpacing: -0.6 },
+  h1: { fontSize: 32, fontWeight: '800', color: C.ink, letterSpacing: -0.8 },
   h2: { fontSize: 13, fontWeight: '700', color: C.muted, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 8 },
   p: { fontSize: 17, color: C.ink, lineHeight: 24 },
-  card: { backgroundColor: C.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.line, gap: 8 },
-  btn: { minHeight: 50, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  card: { backgroundColor: C.card, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: C.line, gap: 8 },
+  btn: { minHeight: 52, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontSize: 16, fontWeight: '700' },
   label: { fontSize: 13, fontWeight: '600', color: C.ink },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.ink },
+  input: { backgroundColor: C.input, borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: C.ink },
 });

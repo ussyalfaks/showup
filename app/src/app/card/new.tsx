@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import QRCode from 'react-native-qrcode-svg';
 import { router } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, Notice, P, Row, Screen, Segmented, errorText } from '@/components/kit';
+import { Button, C, Card, Field, H1, Notice, P, QR, Row, Screen, Segmented, errorText } from '@/components/kit';
 import { CARD_FEE, CONTRACT_ID, USDC_ID } from '@/lib/config';
 import { call, cardLink, ftBalance, newCardKey } from '@/lib/near';
 import { saveCardSecret } from '@/lib/cardstore';
@@ -57,9 +56,7 @@ export default function NewCard() {
       <Screen padTop={false}>
         <H1>Your card is ready</H1>
         <P muted>Anyone with this link or QR can claim {amount} {asset === 'near' ? 'NEAR' : 'USDC'} — share it only with the person it&apos;s for.</P>
-        <View accessible accessibilityRole="image" accessibilityLabel={`QR code for your ${amount} ${asset === 'near' ? 'NEAR' : 'USDC'} gift card`} style={{ alignItems: 'center', padding: 20, backgroundColor: '#fff', borderRadius: 16 }}>
-          <QRCode value={link} size={230} />
-        </View>
+        <QR value={link} size={230} label={`QR code for your ${amount} ${asset === 'near' ? 'NEAR' : 'USDC'} gift card`} />
         <Row>
           <Button title="Share" onPress={() => Share.share({ message: `You got ${amount} ${asset === 'near' ? 'NEAR' : 'USDC'}${message ? ` — “${message}”` : ''}! Claim it in ShowUp: ${link}` })} />
           <Button variant="secondary" title={copied ? 'Copied' : 'Copy link'} onPress={async () => { await Clipboard.setStringAsync(link); setCopied(true); }} />

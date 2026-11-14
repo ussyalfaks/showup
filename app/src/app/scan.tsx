@@ -66,7 +66,7 @@ export default function Scan() {
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => onScan(data)} />
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: 'rgba(250,247,242,0.96)', maxHeight: '45%' }}>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: 'rgba(2,73,39,0.96)', maxHeight: '45%' }}>
         <Text style={{ fontWeight: '800', color: C.ink }}>{mode === 'claim' ? 'Point at a gift card QR' : mode === 'address' ? 'Point at their ShowUp “receive” QR' : 'Point at a guest’s ticket QR'}</Text>
         {log.slice(0, 5).map((l, i) => <Notice key={i} tone={l.tone} text={l.text} />)}
       </View>

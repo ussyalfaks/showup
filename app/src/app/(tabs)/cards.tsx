@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, H2, Notice, P, Pill, Row, Screen, confirmDestructive, errorText, useLoad } from '@/components/kit';
+import { Button, C, Card, Field, H1, H2, Notice, P, Pill, QR, Row, Screen, confirmDestructive, errorText, useLoad } from '@/components/kit';
 import { call, cardLink, parseCardSecret, view, type Card as CardT } from '@/lib/near';
 import { loadCardSecrets } from '@/lib/cardstore';
 import { fmt } from '@/lib/units';
@@ -77,9 +76,7 @@ export default function Cards() {
                 </Row>
                 <Button variant="ghost" title="Take back" busy={busy === c.public_key} onPress={() => takeBack(c)} />
                 {open === c.public_key && (
-                  <View accessible accessibilityRole="image" accessibilityLabel={`QR code for a ${fmt(c.amount, c.asset)} gift card`} style={{ alignSelf: 'center', padding: 12, backgroundColor: '#fff', borderRadius: 12 }}>
-                    <QRCode value={cardLink(s)} size={200} />
-                  </View>
+                  <QR value={cardLink(s)} size={200} label={`QR code for a ${fmt(c.amount, c.asset)} gift card`} />
                 )}
               </>
             )}

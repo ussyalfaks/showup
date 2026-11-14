@@ -21,8 +21,8 @@ function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
   const { ref: _ref, ...rest } = props as TabTriggerSlotProps & { ref?: unknown };
   void _ref;
   return (
-    <Pressable {...(rest as object)} accessibilityRole="tab" accessibilityState={{ selected: !!isFocused }} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: isFocused ? C.ink : 'transparent' }}>
-      <Text style={{ color: isFocused ? '#fff' : C.ink, fontWeight: '600' }}>{children}</Text>
+    <Pressable {...(rest as object)} accessibilityRole="tab" accessibilityState={{ selected: !!isFocused }} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: isFocused ? C.accent : 'transparent' }}>
+      <Text style={{ color: isFocused ? C.onAccent : C.ink, fontWeight: '600' }}>{children}</Text>
     </Pressable>
   );
 }

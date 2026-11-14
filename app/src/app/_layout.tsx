@@ -1,7 +1,7 @@
 import '@/lib/polyfills';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { AccountProvider, useAccount } from '@/context/account';
 import { C } from '@/components/kit';
@@ -13,17 +13,17 @@ SplashScreen.setOptions({ fade: false });
 
 function Gate() {
   const { ready } = useAccount();
-  const [splashDone, setSplashDone] = useState(false);
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
   }, [ready]);
   return (
     <>
-      <StatusBar style={splashDone ? 'dark' : 'light'} />
+      <StatusBar style="light" />
       <Stack
       screenOptions={{
         headerStyle: { backgroundColor: C.paper },
-        headerTintColor: C.ink,
+        headerTintColor: C.accentInk,
+        headerTitleStyle: { color: C.ink },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: C.paper },
         headerBackButtonDisplayMode: 'minimal',
@@ -37,7 +37,7 @@ function Gate() {
       <Stack.Screen name="send" options={{ title: 'Send' }} />
       <Stack.Screen name="backup" options={{ title: 'Back up wallet' }} />
       </Stack>
-      <AnimatedSplash start={ready} onDone={() => setSplashDone(true)} />
+      <AnimatedSplash start={ready} onDone={() => {}} />
     </>
   );
 }

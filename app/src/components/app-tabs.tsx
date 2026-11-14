@@ -4,7 +4,12 @@ import { C } from './kit';
 // iOS: SF Symbols, filled when selected (tab-bars.md › Best practices). Android: the PNGs.
 export default function AppTabs() {
   return (
-    <NativeTabs backgroundColor={C.paper} indicatorColor={C.accentSoft} labelStyle={{ selected: { color: C.ink } }}>
+    <NativeTabs
+      backgroundColor={C.paper}
+      indicatorColor={C.accentSoft}
+      tintColor={C.accent}
+      iconColor={{ default: C.muted, selected: C.accent }}
+      labelStyle={{ default: { color: C.muted }, selected: { color: C.accent } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Events</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'ticket', selected: 'ticket.fill' }} src={require('@/assets/images/tabIcons/events.png')} renderingMode="template" />

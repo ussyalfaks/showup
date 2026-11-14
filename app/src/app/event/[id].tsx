@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg';
 import { useAccount } from '@/context/account';
-import { Button, C, Card, Field, H1, H2, Notice, P, Pill, Row, Screen, Stat, confirmDestructive, errorText, useLoad } from '@/components/kit';
+import { Button, C, Card, Field, H1, H2, Notice, P, Pill, QR, Row, Screen, Stat, confirmDestructive, errorText, useLoad } from '@/components/kit';
 import { CONTRACT_ID } from '@/lib/config';
 import { call, signCheckin, view, type Event, type Rsvp } from '@/lib/near';
 import { eventStatus } from '@/lib/status';
@@ -162,13 +161,11 @@ function Ticket({ eventId, title }: { eventId: string; title: string }) {
   return (
     <View style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
       <View style={{ backgroundColor: C.accent, paddingHorizontal: 18, paddingVertical: 12 }}>
-        <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 1.5, color: C.ink }}>ADMIT ONE</Text>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }} numberOfLines={2}>{title}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '800', letterSpacing: 1.5, color: C.onAccent }}>ADMIT ONE</Text>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: C.onAccent }} numberOfLines={2}>{title}</Text>
       </View>
       <View style={{ alignItems: 'center', padding: 20, gap: 14 }}>
-        <View accessible accessibilityRole="image" accessibilityLabel="Your check-in QR code. Show it to the host at the door.">
-          {payload ? <QRCode value={payload} size={240} /> : <View style={{ width: 240, height: 240 }} />}
-        </View>
+        {payload ? <QR value={payload} size={232} label="Your check-in QR code. Show it to the host at the door." /> : <View style={{ width: 260, height: 260 }} />}
         <View style={{ alignSelf: 'stretch', gap: 6 }} accessible accessibilityLabel={`Live ticket. New code in ${left} seconds.`}>
           <View style={{ flexDirection: 'row', gap: 3 }}>
             {Array.from({ length: REFRESH_S }, (_, i) => (
