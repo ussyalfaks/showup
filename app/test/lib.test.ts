@@ -70,3 +70,28 @@ test('send: address parsing', () => {
   assert.equal(parseAddress('a'.repeat(64)), 'a'.repeat(64));
   assert.equal(parseAddress('not an address!'), null);
 });
+
+test('profile: SocialDB payload has name and IPFS photo', async () => {
+  const { buildProfile } = await import('../src/lib/profile.ts');
+  assert.deepEqual(buildProfile('ada.testnet', { name: '  Ada  ', imageCid: 'bafy123' }), {
+    'ada.testnet': { profile: { name: 'Ada', image: { ipfs_cid: 'bafy123' } } },
+  });
+  assert.deepEqual(buildProfile('ada.testnet', { name: 'Ada' }), { 'ada.testnet': { profile: { name: 'Ada' } } });
+});
+
+test('import: a private key finds its accounts, or falls back to its implicit account', async () => {
+  const { accountsForKey } = await import('../src/lib/profile.ts');
+  const kp = KeyPair.fromRandom('ed25519');
+  const real = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => new Response(JSON.stringify({ account_ids: ['ada.testnet', 'ada2.testnet'] }))) as typeof fetch;
+    assert.deepEqual(await accountsForKey(kp.toString()), ['ada.testnet', 'ada2.testnet']);
+    globalThis.fetch = (async () => new Response(JSON.stringify({ account_ids: [] }))) as typeof fetch;
+    assert.deepEqual(await accountsForKey(kp.toString()), [implicitIdFor(kp.getPublicKey().toString())]);
+    globalThis.fetch = (async () => { throw new Error('offline'); }) as typeof fetch;
+    assert.deepEqual(await accountsForKey(kp.toString()), [implicitIdFor(kp.getPublicKey().toString())]);
+  } finally {
+    globalThis.fetch = real;
+  }
+  assert.throws(() => KeyPair.fromString('not-a-key' as KeyPairString));
+});
