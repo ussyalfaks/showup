@@ -11,7 +11,7 @@ import { Who } from '@/components/Who';
 export default function Claim() {
   const { k } = useLocalSearchParams<{ k?: string }>();
   const secret = k ? parseCardSecret(String(k)) : null;
-  const { accountId, refreshBalance } = useAccount();
+  const { accountId, hasWallet, onboarded, createAccount, finishOnboarding, refreshBalance } = useAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -24,7 +24,10 @@ export default function Claim() {
     setBusy(true);
     setError(null);
     try {
-      await claimCard(secret!, accountId!, c!.asset);
+      // Opened before onboarding: make the wallet now, so claiming stays one tap.
+      const to = hasWallet && accountId ? accountId : await createAccount();
+      await claimCard(secret!, to, c!.asset);
+      if (!onboarded) await finishOnboarding();
       setDone(true);
       setTimeout(refreshBalance, 2500);
     } catch (e) {
@@ -56,14 +59,17 @@ export default function Claim() {
           <H1>It&apos;s yours 🎉</H1>
           <P>The money is in your ShowUp wallet. Use it to RSVP to an event, or send it on.</P>
           <Button title="Go to my wallet" onPress={() => router.replace('/me')} />
+          <Button variant="secondary" title="Add your name and photo" onPress={() => router.replace('/profile')} />
         </>
       )}
       {c && !done && (c.claimed_by || c.cancelled) && <Notice tone="red" text={c.cancelled ? 'The sender took this card back.' : `Already claimed by ${shortId(c.claimed_by!)}.`} />}
       {c && !done && !c.funded && !c.cancelled && <Notice text="This card is still waiting for its USDC deposit." />}
       {c && !done && c.funded && !c.claimed_by && !c.cancelled && (
         <>
-          <Button title="Claim to my wallet" onPress={claim} busy={busy} />
-          <P muted small>Goes to {shortId(accountId ?? '')}. No fee, no gas — the card pays for it.</P>
+          <Button title={hasWallet ? 'Claim to my wallet' : 'Create my wallet and claim'} onPress={claim} busy={busy} />
+          <P muted small>
+            {hasWallet ? `Goes to ${shortId(accountId ?? '')}. ` : 'We make a wallet on this phone for you. '}No fee, no gas — the card pays for it.
+          </P>
         </>
       )}
       {error && <Notice tone="red" text={error} />}
