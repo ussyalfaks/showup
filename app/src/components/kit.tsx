@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import QRCode from 'react-native-qrcode-svg';
@@ -404,6 +404,8 @@ export function confirmDestructive(title: string, message: string, action: strin
 
 export function errorText(e: unknown) {
   const m = (e as { message?: string })?.message ?? String(e);
+  if (/rate limit|too many requests|\b429\b|RetriesExceeded|Exceeded \d+ attempts|Failed to fetch|Network request failed/i.test(m))
+    return 'The NEAR network is busy or unreachable right now. Pull down to try again in a moment.';
   // A new wallet's key isn't on-chain until the wallet first receives NEAR.
   if (/Access key .* does not exist|account .* does not exist|AccountDoesNotExist/i.test(m))
     return "Your wallet isn't activated yet. Add some NEAR first: Me → Faucet, or claim a gift card.";
@@ -413,8 +415,13 @@ export function errorText(e: unknown) {
   return kind ? kind[1] : m.length > 240 ? m.slice(0, 240) + '…' : m;
 }
 
-/** Load once, reload on demand, and optionally poll. */
+/**
+ * Load, reload on demand, and optionally poll. Polling runs only while the screen is visible and
+ * the app is in the foreground, to stay inside public RPC rate limits. A failed refresh keeps the
+ * data already shown: `error` is only set when there is nothing to show.
+ */
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[], pollMs?: number) {
+  const focused = useIsFocused();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const run = useCallback(async () => {
@@ -427,12 +434,15 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[], pollMs?: num
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   useEffect(() => {
+    if (!focused) return;
     run();
     if (!pollMs) return;
-    const t = setInterval(run, pollMs);
+    const t = setInterval(() => {
+      if (AppState.currentState === 'active') run();
+    }, pollMs);
     return () => clearInterval(t);
-  }, [run, pollMs]);
-  return { data, error, reload: run };
+  }, [run, pollMs, focused]);
+  return { data, error: data === null ? error : null, reload: run };
 }
 
 const s = StyleSheet.create({

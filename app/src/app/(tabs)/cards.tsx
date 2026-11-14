@@ -20,7 +20,7 @@ export default function Cards() {
     if (!accountId) return { cards: [] as CardT[], secrets: {} as Record<string, string> };
     const [cards, secrets] = await Promise.all([view<CardT[]>('cards_by', { account_id: accountId }), loadCardSecrets()]);
     return { cards: [...cards].sort((a, b) => Number(b.created_at) - Number(a.created_at)), secrets };
-  }, [accountId], 15_000);
+  }, [accountId], 30_000);
   const pasted = parseCardLink(code);
 
   async function takeBack(c: CardT) {

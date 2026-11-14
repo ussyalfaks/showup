@@ -168,3 +168,43 @@ test('event start time: 12-hour clock, date and time changes, and the 10-minute 
   assert.equal(t.checkinSummary(new Date(2026, 10, 20, 18, 0), 90), 'Check-in opens 4:00 PM and closes 7:30 PM.');
   assert.match(t.checkinSummary(new Date(2026, 10, 20, 23, 30), 60), /closes 12:30 AM \(Sat\)/);
 });
+
+test('reads fall back to the backup RPC on rate limits, but not on real answers', async () => {
+  const { view, nearBalance, resetReadCooldown } = await import('../src/lib/near.ts');
+  const { RPC_URL, RPC_BACKUP_URL } = await import('../src/lib/config.ts');
+  const real = globalThis.fetch;
+  const hits: string[] = [];
+  const ok = (result: unknown) => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result }), { status: 200 });
+  try {
+    // main RPC rate-limits, backup answers
+    globalThis.fetch = (async (url: string) => {
+      hits.push(url);
+      if (url === RPC_URL) return new Response('{"jsonrpc":"2.0","error":{"code":-429,"message":"Rate limits exceeded"}}', { status: 429 });
+      const bytes = [...new TextEncoder().encode(JSON.stringify(['from backup']))];
+      return ok({ result: bytes, logs: [], block_height: 1, block_hash: '11111111111111111111111111111111' });
+    }) as typeof fetch;
+    assert.deepEqual(await view('list_events'), ['from backup']);
+    assert.ok(hits.includes(RPC_URL) && hits.includes(RPC_BACKUP_URL));
+
+    // after a refusal, reads skip the main RPC for a while
+    hits.length = 0;
+    assert.deepEqual(await view('list_events'), ['from backup']);
+    assert.deepEqual(hits, [RPC_BACKUP_URL]);
+    resetReadCooldown();
+
+    // a real answer ("account doesn't exist") is not retried on the backup, and means not activated
+    hits.length = 0;
+    globalThis.fetch = (async (url: string) => {
+      hits.push(url);
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { name: 'HANDLER_ERROR', cause: { name: 'UNKNOWN_ACCOUNT', info: {} }, code: -32000, message: 'Server error', data: 'account abc does not exist while viewing' } }), { status: 200 });
+    }) as typeof fetch;
+    assert.equal(await nearBalance('abc.testnet'), null);
+    assert.ok(!hits.includes(RPC_BACKUP_URL));
+
+    // both RPCs down: the balance check throws instead of pretending the wallet is empty
+    globalThis.fetch = (async () => new Response('busy', { status: 429 })) as typeof fetch;
+    await assert.rejects(nearBalance('abc.testnet'));
+  } finally {
+    globalThis.fetch = real;
+  }
+});

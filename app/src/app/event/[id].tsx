@@ -20,7 +20,7 @@ export default function EventScreen() {
       accountId ? view<string>('deposit_for', { event_id: id, account_id: accountId }) : Promise.resolve('0'),
     ]);
     return { event, rsvp, myDeposit };
-  }, [id, accountId], 5000);
+  }, [id, accountId], 10_000);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; tone: 'red' | 'green' | 'muted' } | null>(null);
 

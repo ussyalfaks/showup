@@ -21,8 +21,8 @@ export default function Events() {
   const { accountId, balance, balanceLoaded } = useAccount();
   const [filter, setFilter] = useState<Filter>('all');
   const narrow = useWindowDimensions().width < 375;
-  const { data, error, reload } = useLoad(() => view<Event[]>('list_events', { from_index: 0, limit: 50 }), [], 15_000);
-  const shared = useLoad(() => getSharedEvents().catch(() => []), [], 30_000);
+  const { data, error, reload } = useLoad(() => view<Event[]>('list_events', { from_index: 0, limit: 50 }), [], 30_000);
+  const shared = useLoad(() => getSharedEvents().catch(() => []), [], 60_000);
   const hosts = useProfiles((data ?? []).map((e) => e.host));
   const upcomingIds = new Set((data ?? []).filter(isUpcoming).map((e) => e.id));
   const discover = (shared.data ?? []).filter((s) => upcomingIds.has(s.eventId) && s.host !== accountId).slice(0, 5);

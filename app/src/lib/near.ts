@@ -1,8 +1,37 @@
 import { Account, JsonRpcProvider, KeyPair, PublicKey, type KeyPairString } from 'near-api-js';
 import { Buffer } from 'buffer';
-import { CONTRACT_ID, RPC_URL } from './config';
+import { CONTRACT_ID, RPC_BACKUP_URL, RPC_URL } from './config';
 
+/** Transactions use one RPC with its full retry policy, so a send is never repeated on another node. */
 export const provider = new JsonRpcProvider({ url: RPC_URL });
+
+// Reads (views, balances, keys) are safe to repeat. Try the main RPC briefly, then the backup,
+// but only for network trouble: a real answer like "account doesn't exist" is passed straight on.
+const readMain = new JsonRpcProvider({ url: RPC_URL }, { retries: 2, wait: 400, backoff: 2 });
+const readBackup = new JsonRpcProvider({ url: RPC_BACKUP_URL }, { retries: 3, wait: 600, backoff: 2 });
+const NETWORK_TROUBLE = /rate limit|too many requests|\b429\b|RetriesExceeded|Exceeded \d+ attempts|unavailable|Bad Gateway|Internal server error|Timeout error|Network request failed|Failed to fetch|fetch failed/i;
+export const isNetworkTrouble = (e: unknown) => {
+  const err = e as { message?: string; cause?: unknown };
+  return NETWORK_TROUBLE.test(String(err?.message ?? e)) || [408, 429, 500, 502, 503].includes(err?.cause as number);
+};
+// After the main RPC refuses us, go straight to the backup for a minute instead of paying its
+// retries on every read, then give the main RPC another chance.
+const COOLDOWN_MS = 60_000;
+let mainBlockedUntil = 0;
+/** For tests: forget a previous refusal. */
+export const resetReadCooldown = () => {
+  mainBlockedUntil = 0;
+};
+export async function read<T>(fn: (p: JsonRpcProvider) => Promise<T>): Promise<T> {
+  if (Date.now() < mainBlockedUntil) return fn(readBackup);
+  try {
+    return await fn(readMain);
+  } catch (e) {
+    if (!isNetworkTrouble(e)) throw e;
+    mainBlockedUntil = Date.now() + COOLDOWN_MS;
+    return fn(readBackup);
+  }
+}
 
 // ---------------------------------------------------------------- types
 
@@ -59,15 +88,17 @@ export interface Attendance {
 // ---------------------------------------------------------------- reads
 
 export async function view<T>(method: string, args: Record<string, unknown> = {}): Promise<T> {
-  return (await provider.callFunction({ contractId: CONTRACT_ID, method, args })) as T;
+  return (await read((p) => p.callFunction({ contractId: CONTRACT_ID, method, args }))) as T;
 }
 
 /** Balance in yoctoNEAR, or null if the account doesn't exist yet. */
 export async function nearBalance(accountId: string): Promise<bigint | null> {
   try {
-    const a = (await provider.viewAccount({ accountId, blockQuery: { finality: 'optimistic' } })) as unknown as { amount: bigint | string };
+    const a = (await read((p) => p.viewAccount({ accountId, blockQuery: { finality: 'optimistic' } }))) as unknown as { amount: bigint | string };
     return BigInt(a.amount);
-  } catch {
+  } catch (e) {
+    // Only "no such account" means not activated yet; network trouble must not look like 0 NEAR.
+    if (isNetworkTrouble(e)) throw e;
     return null;
   }
 }
@@ -142,7 +173,7 @@ const ALLOWANCE_PER_TGAS = 10n ** 21n; // 0.001 NEAR
 /** Remaining allowance on a card's claim key, or null if the key is gone (claimed or cancelled). */
 export async function cardKeyAllowance(publicKey: string): Promise<bigint | null> {
   try {
-    const k = await provider.viewAccessKey({ accountId: CONTRACT_ID, publicKey });
+    const k = await read((p) => p.viewAccessKey({ accountId: CONTRACT_ID, publicKey }));
     const fc = (k.permission as { FunctionCall?: { allowance?: string | bigint | null } }).FunctionCall;
     return fc?.allowance != null ? BigInt(fc.allowance) : null;
   } catch {
@@ -210,7 +241,7 @@ export function parseAddress(input: string): string | null {
 
 export async function ftBalance(token: string, accountId: string): Promise<bigint> {
   try {
-    const r = (await provider.callFunction({ contractId: token, method: 'ft_balance_of', args: { account_id: accountId } })) as string;
+    const r = (await read((p) => p.callFunction({ contractId: token, method: 'ft_balance_of', args: { account_id: accountId } }))) as string;
     return BigInt(r ?? '0');
   } catch {
     return 0n;
@@ -226,7 +257,7 @@ export async function sendNear(account: Account, receiverId: string, amount: big
 
 /** Send a NEP-141 token; registers the receiver first if needed (0.00125 NEAR). */
 export async function sendToken(account: Account, token: string, receiverId: string, amount: bigint) {
-  const reg = (await provider.callFunction({ contractId: token, method: 'storage_balance_of', args: { account_id: receiverId } }).catch(() => null)) as unknown;
+  const reg = (await read((p) => p.callFunction({ contractId: token, method: 'storage_balance_of', args: { account_id: receiverId } })).catch(() => null)) as unknown;
   if (!reg) {
     await account.callFunction({ contractId: token, methodName: 'storage_deposit', args: { account_id: receiverId, registration_only: true }, deposit: 125n * 10n ** 19n, gas: 30n * 10n ** 12n });
   }

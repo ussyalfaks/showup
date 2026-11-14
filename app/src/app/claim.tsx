@@ -25,7 +25,7 @@ export default function Claim() {
   // Wrapped so "still loading" (data null) and "no such card" (card null) look different.
   // Re-checked every 5 s: a card opened seconds after it was made can lag behind on the RPC,
   // and the status (claimed, taken back) stays current while the person types the code.
-  const card = useLoad(async () => ({ card: publicKey ? await view<CardT | null>('get_card', { public_key: publicKey }) : null }), [publicKey], 5000);
+  const card = useLoad(async () => ({ card: publicKey ? await view<CardT | null>('get_card', { public_key: publicKey }) : null }), [publicKey], 8000);
 
   if (!link || !publicKey) return <Screen back="Claim a gift card"><Notice tone="red" text="This link doesn't contain a valid gift card." /></Screen>;
   const c = card.data?.card;

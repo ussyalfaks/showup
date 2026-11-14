@@ -2,7 +2,7 @@
 // Reads are free contract views; writes are `set` calls signed by the user.
 import type { Account } from 'near-api-js';
 import { CONTRACT_ID, NETWORK } from './config';
-import { provider } from './near';
+import { read } from './near';
 
 export const SOCIAL_CONTRACT = process.env.EXPO_PUBLIC_SOCIAL_CONTRACT ?? (NETWORK === 'mainnet' ? 'social.near' : 'v1.social08.testnet');
 export const SOCIAL_WEB = NETWORK === 'mainnet' ? 'https://near.social' : 'https://test.near.social';
@@ -18,7 +18,7 @@ type Tree = Record<string, any>;
 
 async function socialGet(keys: string[]): Promise<Tree> {
   if (!keys.length) return {};
-  const r = (await provider.callFunction({ contractId: SOCIAL_CONTRACT, method: 'get', args: { keys } })) as Tree | null;
+  const r = (await read((p) => p.callFunction({ contractId: SOCIAL_CONTRACT, method: 'get', args: { keys } }))) as Tree | null;
   return r ?? {};
 }
 

@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { KeyPair, type KeyPairString } from 'near-api-js';
 import { deleteItem, getItem, setItem } from '@/lib/storage';
@@ -54,8 +55,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshBalance = useCallback(async () => {
-    setBalance(stored ? await nearBalance(stored.accountId) : null);
-    setBalanceLoaded(true);
+    try {
+      setBalance(stored ? await nearBalance(stored.accountId) : null);
+      setBalanceLoaded(true);
+    } catch {
+      // RPC busy or offline: keep the last balance shown and try again on the next tick.
+    }
   }, [stored]);
 
   const createAccount = useCallback(async () => {
@@ -67,7 +72,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshBalance();
-    const t = setInterval(refreshBalance, 15_000);
+    // Every 30 s while the app is open (public RPCs rate-limit busy clients).
+    const t = setInterval(() => {
+      if (AppState.currentState === 'active') refreshBalance().catch(() => {});
+    }, 30_000);
     return () => clearInterval(t);
   }, [refreshBalance]);
 
