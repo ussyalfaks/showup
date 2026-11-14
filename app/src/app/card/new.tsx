@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -10,6 +10,7 @@ import { CARD_FEE, CONTRACT_ID, USDC_ID } from '@/lib/config';
 import { call, ftBalance } from '@/lib/near';
 import { saveProtectedCard } from '@/lib/cardstore';
 import { newProtectedCard } from '@/lib/cardcode';
+import { linkBase, shareOrCopy } from '@/lib/links';
 import { RedeemCode } from '@/components/RedeemCode';
 import { fromUnits, toUnits } from '@/lib/units';
 
@@ -27,6 +28,7 @@ export default function NewCard() {
   const [link, setLink] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
   async function create() {
@@ -38,7 +40,7 @@ export default function NewCard() {
       if (asset === 'usdc' && usdc !== null && BigInt(units) > usdc) throw new Error(`You have ${fromUnits(usdc, 6)} USDC. Add USDC to your wallet, or make a NEAR card instead.`);
       if (balance < (asset === 'near' ? BigInt(units) : 0n) + CARD_FEE) throw new Error(`You need ${asset === 'near' ? `${amount} NEAR plus ` : ''}the ${fromUnits(CARD_FEE, 24)} NEAR fee. You have ${fromUnits(balance, 24)} NEAR.`);
       // Every card gets a redeem code: the key is split between the link and the code.
-      const card = await newProtectedCard();
+      const card = await newProtectedCard(linkBase());
       const { publicKey } = card;
       // Saved first, so the code is never lost even if the app closes mid-way.
       await saveProtectedCard(publicKey, card.linkSecret, card.code);
@@ -99,10 +101,14 @@ export default function NewCard() {
               title="Share"
               icon="share"
               style={{ flex: 1 }}
-              onPress={() => Share.share({ message: `You got ${amount} ${sym}${message ? ` — “${message}”` : ''}! Claim it in ShowUp: ${link}\nI'll send you the redeem code separately.` })}
+              onPress={async () => {
+                const r = await shareOrCopy(`You got ${amount} ${sym}${message ? ` — “${message}”` : ''}! Claim it in ShowUp: ${link}\nI'll send you the redeem code separately.`);
+                if (r === 'copied') setShared('Link copied. Paste it into a message, and send the redeem code separately.');
+              }}
             />
             <Button variant="secondary" title={copied ? 'Copied' : 'Copy link'} icon={copied ? 'check' : 'copy'} style={{ flex: 1 }} onPress={async () => { await Clipboard.setStringAsync(link); setCopied(true); }} />
           </View>
+          {shared && <Notice tone="green" icon="check" text={shared} />}
           <RedeemCode code={code} />
           <Text style={{ fontFamily: F.body, color: C.muted, fontSize: 14, lineHeight: 20 }}>
             You can take the money back from{' '}

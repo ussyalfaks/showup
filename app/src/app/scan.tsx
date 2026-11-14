@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAccount } from '@/context/account';
@@ -56,12 +56,17 @@ export default function Scan() {
     }
   }
 
+  const what = mode === 'claim' ? 'gift card link' : mode === 'address' ? 'NEAR address' : "guest's ticket code";
+  const results = log.slice(0, 5).map((l, i) => <Notice key={i} tone={l.tone} text={l.text} />);
+
   if (!permission) return <Screen back="Scan"><P muted>Checking camera permission…</P></Screen>;
   if (!permission.granted) {
     return (
       <Screen back="Scan">
         <P>ShowUp needs the camera to scan {mode === 'claim' ? 'gift card' : mode === 'address' ? 'wallet' : 'ticket'} QR codes.</P>
-        <Button title="Allow camera" onPress={requestPermission} />
+        {permission.canAskAgain !== false && <Button title="Allow camera" onPress={requestPermission} />}
+        <PasteCode what={what} onUse={onScan} open />
+        {results}
       </Screen>
     );
   }
@@ -74,8 +79,50 @@ export default function Scan() {
       </View>
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, gap: 8, backgroundColor: 'rgba(255,255,255,0.97)', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '45%' }}>
         <Text style={{ fontFamily: F.display, color: C.ink }}>{mode === 'claim' ? 'Point at a gift card QR' : mode === 'address' ? 'Point at their ShowUp “receive” QR' : 'Point at a guest’s ticket QR'}</Text>
-        {log.slice(0, 5).map((l, i) => <Notice key={i} tone={l.tone} text={l.text} />)}
+        <PasteCode what={what} onUse={onScan} />
+        {results}
       </View>
+    </View>
+  );
+}
+
+/**
+ * No camera (web without a webcam, the iOS Simulator) or a QR that won't scan: paste what the
+ * QR contains instead. It goes through exactly the same checks as a scan.
+ */
+function PasteCode({ what, onUse, open: startOpen }: { what: string; onUse: (data: string) => void; open?: boolean }) {
+  const [open, setOpen] = useState(!!startOpen);
+  const [text, setText] = useState('');
+  if (!open) {
+    return (
+      <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+        <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.accent }}>Can&apos;t scan? Paste the code instead</Text>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.ink }}>Paste the {what}</Text>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder={what === "guest's ticket code" ? '{"t":"showup-checkin",…}' : 'Paste here'}
+        placeholderTextColor={C.placeholder}
+        autoCapitalize="none"
+        autoCorrect={false}
+        multiline
+        accessibilityLabel={`Paste the ${what}`}
+        style={{ minHeight: 64, maxHeight: 120, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, fontFamily: F.monoRegular, fontSize: 13, color: C.ink }}
+      />
+      <Button
+        compact
+        title="Use this code"
+        disabled={!text.trim()}
+        onPress={() => {
+          onUse(text.trim());
+          setText('');
+        }}
+      />
     </View>
   );
 }

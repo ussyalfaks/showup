@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -10,6 +11,7 @@ import { call, signCheckin, view, type Event, type Rsvp } from '@/lib/near';
 import { eventStatus } from '@/lib/status';
 import { fmt, fromUnits, decimalsFor, symbolFor, nsToDate, shortId } from '@/lib/units';
 import { useProfiles } from '@/components/Who';
+import { appLink, shareOrCopy } from '@/lib/links';
 import { coverUrl, eventPostText, getEventCover, imageUrl, postToSocial, shareEvent, shoutOutText, type Profile } from '@/lib/social';
 
 const time = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -88,7 +90,10 @@ export default function EventScreen() {
         : canSettle
           ? `Check-in closed at ${time(nsToDate(e.checkin_until))}`
           : `RSVPs open · check-in from ${time(new Date(start.getTime() - 2 * 3600_000))}`;
-  const shareEventLink = () => Share.share({ message: `${e.title} — ${start.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${time(start)}${e.location ? `, ${e.location}` : ''}. RSVP on ShowUp: showup://event/${id}` });
+  const shareEventLink = async () => {
+    const r = await shareOrCopy(`${e.title} — ${start.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${time(start)}${e.location ? `, ${e.location}` : ''}. RSVP on ShowUp: ${appLink(`event/${id}`)}`);
+    if (r === 'copied') setMsg({ text: 'Event link copied. Paste it anywhere.', tone: 'green' });
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
@@ -431,6 +436,7 @@ function TicketCard({ eventId, title }: { eventId: string; title: string }) {
   const { accountId, secretKey } = useAccount();
   const [payload, setPayload] = useState<string>('');
   const [left, setLeft] = useState(REFRESH_S);
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!accountId || !secretKey) return;
     let n = REFRESH_S;
@@ -464,6 +470,19 @@ function TicketCard({ eventId, title }: { eventId: string; title: string }) {
           <Text style={{ fontFamily: F.bodyBold, fontSize: 14, color: C.greenInk }}>● Live · new code in {left} s</Text>
         </View>
         <P small muted>Show this to the host. The code changes every 10 seconds, so a screenshot won&apos;t get anyone else in.</P>
+        {/* For hosts without a working camera (web, simulator): they paste this in "Paste code instead". */}
+        <Button
+          compact
+          variant="secondary"
+          icon={copied ? 'check' : 'copy'}
+          title={copied ? 'Copied · valid about a minute' : 'Copy ticket code'}
+          onPress={async () => {
+            await Clipboard.setStringAsync(payload);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 4000);
+          }}
+          style={{ alignSelf: 'stretch' }}
+        />
       </View>
     </View>
   );

@@ -240,3 +240,17 @@ test('transactions: the same call is repeated on the backup RPC only for network
     resetReadCooldown();
   }
 });
+
+test('card links work as website links too', async () => {
+  const { newProtectedCard, protectedCardLink, parseCardLink } = await import('../src/lib/cardcode.ts');
+  const card = await newProtectedCard('https://showup.vercel.app');
+  assert.match(card.link, /^https:\/\/showup\.vercel\.app\/claim\?c=[1-9A-HJ-NP-Za-km-z]+&p=[1-9A-HJ-NP-Za-km-z]+$/);
+  assert.deepEqual(parseCardLink(card.link), { kind: 'coded', linkSecret: card.linkSecret, publicKey: card.publicKey });
+  assert.ok(!card.link.includes(card.code));
+  // trailing slash on the site, and the app scheme
+  assert.equal(protectedCardLink('abc', 'ed25519:XYZ', 'https://x.app/'), 'https://x.app/claim?c=abc&p=XYZ');
+  assert.equal(protectedCardLink('abc', 'ed25519:XYZ'), 'showup://claim?c=abc&p=XYZ');
+  // older whole-key links in website form still open
+  const { secret } = newCardKey();
+  assert.deepEqual(parseCardLink(`https://showup.vercel.app/claim?k=${secret}`), { kind: 'key', secret });
+});

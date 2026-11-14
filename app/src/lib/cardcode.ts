@@ -1,6 +1,6 @@
 // Redeem codes for gift cards: the card's key is split in two.
 //
-//   link  = showup://claim?c=<linkSecret>&p=<card public key>
+//   link  = <site or showup://>/claim?c=<linkSecret>&p=<card public key>
 //   code  = 10 characters, e.g. K7QM9-XRT4P, sent separately
 //   key   = ed25519 from PBKDF2-SHA256(code, salt = "showup-card-v2:" + linkSecret, 100k rounds)
 //
@@ -18,7 +18,6 @@ const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const CODE_LENGTH = 10;
 const ROUNDS = 100_000;
 const SALT_PREFIX = 'showup-card-v2:';
-const LINK_PREFIX = 'showup://claim?';
 
 const random = (n: number) => globalThis.crypto.getRandomValues(new Uint8Array(n));
 
@@ -67,15 +66,18 @@ export interface ProtectedCard extends CardKey {
 }
 
 /** Everything needed to create a protected card: the link half, the code and the derived key. */
-export async function newProtectedCard(): Promise<ProtectedCard> {
+/** `base` is where the link points: the website (https://…) or the app scheme (showup://). */
+export async function newProtectedCard(base = 'showup://'): Promise<ProtectedCard> {
   const linkSecret = base58.encode(random(32));
   const code = generateCode();
   const key = await deriveCardKey(linkSecret, code);
-  return { ...key, linkSecret, code, link: protectedCardLink(linkSecret, key.publicKey) };
+  return { ...key, linkSecret, code, link: protectedCardLink(linkSecret, key.publicKey, base) };
 }
 
-export const protectedCardLink = (linkSecret: string, publicKey: string) =>
-  `${LINK_PREFIX}c=${linkSecret}&p=${publicKey.replace(/^ed25519:/, '')}`;
+export function protectedCardLink(linkSecret: string, publicKey: string, base = 'showup://'): string {
+  const query = `claim?c=${linkSecret}&p=${publicKey.replace(/^ed25519:/, '')}`;
+  return base.endsWith('://') ? `${base}${query}` : `${base.replace(/\/+$/, '')}/${query}`;
+}
 
 export type ParsedCardLink =
   | { kind: 'key'; secret: string } // older cards: the link is the whole key

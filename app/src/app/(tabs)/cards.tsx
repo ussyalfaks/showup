@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pressable, Share, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAccount } from '@/context/account';
 import { Button, C, Card, F, H1, H2, Icon, Notice, P, QR, Screen, confirmDestructive, errorText, useLoad } from '@/components/kit';
-import { call, cardLink, view, type Card as CardT } from '@/lib/near';
+import { call, view, type Card as CardT } from '@/lib/near';
 import { loadCardSecrets, shareInfo } from '@/lib/cardstore';
 import { claimParams, parseCardLink } from '@/lib/cardcode';
+import { appLink, linkBase, shareOrCopy } from '@/lib/links';
 import { RedeemCode } from '@/components/RedeemCode';
 import { fmt } from '@/lib/units';
 import { Who } from '@/components/Who';
@@ -76,7 +77,7 @@ export default function Cards() {
           <TextInput
             value={code}
             onChangeText={setCode}
-            placeholder="showup://claim?c=…"
+            placeholder="Paste a card link"
             placeholderTextColor={C.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
@@ -94,7 +95,7 @@ export default function Cards() {
       {mine.data && !mine.data.cards.length && <P muted small>None yet. Your first card takes about a minute.</P>}
       {mine.data?.cards.map((c) => {
         const stored = mine.data!.secrets[c.public_key];
-        const share = stored ? shareInfo(c.public_key, stored, cardLink) : null;
+        const share = stored ? shareInfo(c.public_key, stored, (k) => appLink(`claim?k=${k}`), linkBase()) : null;
         const live = !c.claimed_by && !c.cancelled;
         const [label, dot] = c.cancelled ? ['Taken back', C.muted] : c.claimed_by ? ['Claimed', C.green] : !c.funded ? ['Waiting for USDC', C.amber] : ['Waiting to be claimed', C.coral];
         const isOpen = open === c.public_key;
@@ -123,7 +124,10 @@ export default function Cards() {
                     variant="secondary"
                     title="Share link"
                     style={{ flex: 1.2 }}
-                    onPress={() => Share.share({ message: `You got ${fmt(c.amount, c.asset)}! Claim it in ShowUp: ${share.link}${share.code ? "\nI'll send you the redeem code separately." : ''}` })}
+                    onPress={async () => {
+                      const r = await shareOrCopy(`You got ${fmt(c.amount, c.asset)}! Claim it in ShowUp: ${share.link}${share.code ? "\nI'll send you the redeem code separately." : ''}`);
+                      if (r === 'copied') setMsg({ text: 'Link copied. Paste it into a message.', tone: 'green' });
+                    }}
                   />
                 )}
                 {/* Taking back only needs your wallet, so it works for cards made on another phone too. */}

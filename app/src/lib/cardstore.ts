@@ -20,10 +20,10 @@ export async function loadCardSecrets(): Promise<Record<string, string>> {
 }
 
 /** What the creator can share for a card: the link, and the redeem code if it has one. */
-export function shareInfo(publicKey: string, stored: string, oldLink: (secret: string) => string): { link: string; code: string | null } {
+export function shareInfo(publicKey: string, stored: string, oldLink: (secret: string) => string, base = 'showup://'): { link: string; code: string | null } {
   if (stored.startsWith('{')) {
     const { c, code } = JSON.parse(stored) as { c: string; code: string };
-    return { link: protectedCardLink(c, publicKey), code };
+    return { link: protectedCardLink(c, publicKey, base), code };
   }
   return { link: oldLink(stored), code: null };
 }
