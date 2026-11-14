@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { StatusBar } from 'expo-status-bar';
 
-/** Brand splash colours (see the ShowUp splash brief). */
-export const SPLASH_BG = '#024927';
-const GLOW = '#39E75B';
+/** Brand splash: the logo's purple, white "Show", coral "Up", a soft white glow. */
+export const SPLASH_BG = '#5218FB';
+const GLOW = '#FFFFFF';
 
 // Logo asset proportions: "Show" and "Up" are cut from the supplied wordmark at the gap
 // between them, so placed side by side they reproduce it exactly.
-const SHOW_W = 558;
-const UP_W = 285;
-const LOGO_H = 185;
+const SHOW_W = 516;
+const UP_W = 244;
+const LOGO_H = 165;
 const LOGO_W = SHOW_W + UP_W;
 
 const ease = Easing.out(Easing.cubic);
@@ -19,15 +20,15 @@ const ease = Easing.out(Easing.cubic);
 let played = false;
 
 /**
- * Black → deep green (300 ms), wordmark fades in and scales 96% → 100% (500 ms), the lime
+ * Black → brand purple (300 ms), wordmark fades in and scales 96% → 100% (500 ms), the coral
  * "Up" draws on left to right (400 ms), hold (400 ms), then the splash fades away (300 ms).
- * Reduced motion: no scale or draw-on, just the logo on green and a short dissolve.
+ * Reduced motion: no scale or draw-on, just the logo on purple and a short dissolve.
  * It sits over the app, which loads underneath, so it never delays startup work.
  */
 export function AnimatedSplash({ start, onDone }: { start: boolean; onDone: () => void }) {
   const { width, height } = useWindowDimensions();
   const [visible, setVisible] = useState(!played);
-  const bg = useRef(new Animated.Value(0)).current; // black -> green
+  const bg = useRef(new Animated.Value(0)).current; // black -> purple
   const logo = useRef(new Animated.Value(0)).current; // opacity + scale
   const draw = useRef(new Animated.Value(0)).current; // "Up" reveal 0..1
   const exit = useRef(new Animated.Value(1)).current; // whole overlay opacity
@@ -84,11 +85,13 @@ export function AnimatedSplash({ start, onDone }: { start: boolean; onDone: () =
       accessibilityRole="image"
       accessibilityLabel="ShowUp"
       style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: exit, zIndex: 100, pointerEvents: 'none' }]}>
+      {/* White status bar icons on purple; the app's dark ones return when the splash unmounts. */}
+      <StatusBar style="light" />
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_BG, opacity: bg, alignItems: 'center', justifyContent: 'center' }]}>
         <Svg width={glow} height={glow} style={{ position: 'absolute' }}>
           <Defs>
             <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor={GLOW} stopOpacity={0.14} />
+              <Stop offset="0" stopColor={GLOW} stopOpacity={0.16} />
               <Stop offset="1" stopColor={GLOW} stopOpacity={0} />
             </RadialGradient>
           </Defs>
@@ -100,10 +103,10 @@ export function AnimatedSplash({ start, onDone }: { start: boolean; onDone: () =
             opacity: logo,
             transform: [{ scale: logo.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
           }}>
-          <Animated.Image source={require('@/assets/images/brand/logo-show.png')} style={{ width: showW, height: logoH }} resizeMode="contain" />
+          <Animated.Image source={require('@/assets/images/brand/splash-show.png')} style={{ width: showW, height: logoH }} resizeMode="contain" />
           {/* "Up" draws on: a left-to-right reveal of the lime U and its check stroke. */}
           <Animated.View style={{ width: draw.interpolate({ inputRange: [0, 1], outputRange: [0, upW] }), height: logoH, overflow: 'hidden' }}>
-            <Animated.Image source={require('@/assets/images/brand/logo-up.png')} style={{ width: upW, height: logoH }} resizeMode="contain" />
+            <Animated.Image source={require('@/assets/images/brand/splash-up.png')} style={{ width: upW, height: logoH }} resizeMode="contain" />
           </Animated.View>
           {/* Keeps the wordmark centred while "Up" is still drawing. */}
           <Animated.View style={{ width: draw.interpolate({ inputRange: [0, 1], outputRange: [upW, 0] }) }} />
