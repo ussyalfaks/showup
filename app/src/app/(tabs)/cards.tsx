@@ -41,7 +41,7 @@ export default function Cards() {
   }
 
   return (
-    <Screen onRefresh={mine.reload}>
+    <Screen onRefresh={mine.reload} tabBar>
       <View style={{ gap: 6 }}>
         <H1>Gift cards</H1>
         <P muted small>Send NEAR or USDC as a link or QR, plus a redeem code. No wallet, no gas, no app store detour.</P>

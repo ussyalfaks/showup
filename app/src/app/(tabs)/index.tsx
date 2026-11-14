@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { useAccount } from '@/context/account';
 import { Button, C, Card, F, H2, Link, Logo, Notice, P, Pill, Screen, Ticket, useLoad } from '@/components/kit';
 import { view, type Event } from '@/lib/near';
@@ -20,6 +20,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 export default function Events() {
   const { accountId, balance, balanceLoaded } = useAccount();
   const [filter, setFilter] = useState<Filter>('all');
+  const narrow = useWindowDimensions().width < 375;
   const { data, error, reload } = useLoad(() => view<Event[]>('list_events', { from_index: 0, limit: 50 }), [], 15_000);
   const shared = useLoad(() => getSharedEvents().catch(() => []), [], 30_000);
   const hosts = useProfiles((data ?? []).map((e) => e.host));
@@ -33,30 +34,31 @@ export default function Events() {
   const anyUpcoming = shown.some(isUpcoming);
 
   return (
-    <Screen onRefresh={reload}>
+    <Screen onRefresh={reload} tabBar>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Logo height={28} />
+        <Logo height={narrow ? 22 : 28} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={balance === null ? 'Add NEAR to your wallet' : `Balance ${fromUnits(balance, 24, 2)} NEAR`}
           onPress={() => router.push('/me')}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 6, minHeight: 42, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
-          <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.ink }}>{balance !== null ? `${fromUnits(balance, 24, 2)} NEAR` : balanceLoaded ? 'Add NEAR' : '… NEAR'}</Text>
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, marginLeft: 10, paddingLeft: 14, paddingRight: 6, minHeight: 42, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
+          <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={{ flexShrink: 1, fontFamily: F.bodyBold, fontSize: 15, color: C.ink }}>{balance !== null ? `${fromUnits(balance, 24, 2)} NEAR` : balanceLoaded ? 'Add NEAR' : '… NEAR'}</Text>
           {NETWORK === 'testnet' ? <Pill text="TEST" tone="purple" /> : <View style={{ width: 8 }} />}
         </Pressable>
       </View>
 
       {/* Hero */}
       <View style={{ backgroundColor: C.accent, borderRadius: 26, padding: 22, gap: 14, overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', right: -40, top: -40, width: 150, height: 150, borderRadius: 75, backgroundColor: C.coral }} />
-        <View style={{ position: 'absolute', right: 52, top: 88, width: 44, height: 44, borderRadius: 22, borderWidth: 3, borderColor: '#FFFFFF' }} />
-        <Text accessibilityRole="header" style={{ fontFamily: F.display, fontSize: 34, lineHeight: 36, color: '#FFFFFF', letterSpacing: -1, maxWidth: '82%' }}>
+        {/* Decoration stays in the corner, behind and clear of the text. */}
+        <View pointerEvents="none" style={{ position: 'absolute', right: -46, top: -46, width: 130, height: 130, borderRadius: 65, backgroundColor: C.coral }} />
+        <View pointerEvents="none" style={{ position: 'absolute', right: 14, top: 14, width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: '#FFFFFF' }} />
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 32, lineHeight: 35, color: '#FFFFFF', letterSpacing: -1, paddingRight: 64 }}>
           Show up. Get paid back.
         </Text>
-        <Text style={{ fontFamily: F.body, fontSize: 15, lineHeight: 21, color: C.onAccentSoft, maxWidth: '92%' }}>
+        <Text maxFontSizeMultiplier={1.4} style={{ fontFamily: F.body, fontSize: 15, lineHeight: 21, color: C.onAccentSoft }}>
           Lock a small deposit to RSVP. Come, and you get it back plus a share of what the no-shows left behind.
         </Text>
-        <Button variant="white" icon="plus" title="Host an event" onPress={() => router.push('/event/new')} style={{ alignSelf: 'flex-start', borderWidth: 0 }} />
+        <Button variant="white" icon="plus" title="Host" accessibilityLabel="Host an event" onPress={() => router.push('/event/new')} style={{ alignSelf: 'flex-start', borderWidth: 0, paddingHorizontal: 26 }} />
       </View>
 
       {error && <Notice tone="red" text={`Couldn't load events: ${error}`} />}
@@ -85,8 +87,8 @@ export default function Events() {
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
               onPress={() => setFilter(f.value)}
-              style={({ pressed }) => ({ minHeight: 42, paddingHorizontal: 16, borderRadius: 999, justifyContent: 'center', backgroundColor: on ? C.navy : C.card, borderWidth: 1, borderColor: on ? C.navy : C.line, opacity: pressed ? 0.7 : 1 })}>
-              <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: on ? '#FFFFFF' : C.ink }}>{f.label}</Text>
+              style={({ pressed }) => ({ flex: 1, minHeight: 44, paddingHorizontal: 8, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.navy : C.card, borderWidth: 1, borderColor: on ? C.navy : C.line, opacity: pressed ? 0.7 : 1 })}>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.3} style={{ fontFamily: F.bodyBold, fontSize: 15, color: on ? '#FFFFFF' : C.ink }}>{f.value === 'all' && narrow ? 'All' : f.label}</Text>
             </Pressable>
           );
         })}
@@ -112,6 +114,7 @@ function EventTicket({ e, hostName }: { e: Event; hostName?: string }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${e.title}, ${st.text}, ${e.guests.length} of ${e.capacity} going`} onPress={() => router.push(`/event/${e.id}`)} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
       <Ticket
+        borderless
         stub={
           <View style={{ alignItems: 'center', gap: 2 }}>
             <Text style={{ fontFamily: F.bodyBold, fontSize: 13, letterSpacing: 1, color: C.muted }}>{d.toLocaleString('en', { month: 'short' }).toUpperCase()}</Text>

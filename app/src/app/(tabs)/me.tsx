@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Image, Linking, Pressable, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAccount } from '@/context/account';
 import { useProfiles } from '@/components/Who';
@@ -14,6 +14,7 @@ import { fromUnits, shortId } from '@/lib/units';
 
 export default function Me() {
   const { account, accountId, balance, balanceLoaded, refreshBalance, resetAccount } = useAccount();
+  const narrow = useWindowDimensions().width < 375;
   const rec = useLoad(() => (accountId ? view<Attendance>('get_record', { account_id: accountId }) : Promise.resolve(null)), [accountId]);
   const [profileKey, setProfileKey] = useState(0);
   const profiles = useProfiles(accountId ? [accountId] : [], profileKey);
@@ -67,7 +68,7 @@ export default function Me() {
   }
 
   return (
-    <Screen onRefresh={async () => { await refreshBalance(); await rec.reload(); setProfileKey((k) => k + 1); }}>
+    <Screen tabBar onRefresh={async () => { await refreshBalance(); await rec.reload(); setProfileKey((k) => k + 1); }}>
       {/* Profile */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Pressable accessibilityRole="button" accessibilityLabel={shownName ? 'Edit profile' : 'Set up your profile'} onPress={() => router.push('/profile')}>
@@ -134,10 +135,11 @@ export default function Me() {
             <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: C.muted }}>Reliability</Text>
           </View>
         }>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingRight: 4 }}>
-          <MiniStat value={r?.attended ?? 0} label="Showed up" />
-          <MiniStat value={r?.no_shows ?? 0} label="No-shows" />
-          <MiniStat value={r?.hosted ?? 0} label="Hosted" />
+        {/* Side by side as in the design; stacked on narrow phones so labels never break mid-word. */}
+        <View style={narrow ? { gap: 4 } : { flexDirection: 'row', gap: 6 }}>
+          <MiniStat inline={narrow} value={r?.attended ?? 0} label="Showed up" />
+          <MiniStat inline={narrow} value={r?.no_shows ?? 0} label="No-shows" />
+          <MiniStat inline={narrow} value={r?.hosted ?? 0} label="Hosted" />
         </View>
       </Ticket>
       <Text style={{ fontFamily: F.body, fontSize: 14, lineHeight: 20, color: C.muted, paddingHorizontal: 4 }}>
@@ -170,11 +172,19 @@ export default function Me() {
   );
 }
 
-function MiniStat({ value, label }: { value: number; label: string }) {
+function MiniStat({ value, label, inline }: { value: number; label: string; inline?: boolean }) {
+  if (inline) {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+        <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 20, minWidth: 22, color: C.ink }}>{value}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.body, fontSize: 14, color: C.muted }}>{label}</Text>
+      </View>
+    );
+  }
   return (
-    <View style={{ gap: 2 }}>
-      <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{value}</Text>
-      <Text style={{ fontFamily: F.body, fontSize: 13, color: C.muted }}>{label}</Text>
+    <View style={{ flex: 1, gap: 2 }}>
+      <Text maxFontSizeMultiplier={1.3} style={{ fontFamily: F.display, fontSize: 24, color: C.ink }}>{value}</Text>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.3} style={{ fontFamily: F.body, fontSize: 12, lineHeight: 15, color: C.muted }}>{label}</Text>
     </View>
   );
 }

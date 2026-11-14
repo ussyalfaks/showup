@@ -58,13 +58,13 @@ export function Icon({ name, size = 18, color = C.ink }: { name: IconName; size?
 }
 
 /** Scrolling page. `back` draws the design's header: a square back button and a small title. */
-export function Screen({ children, onRefresh, back, padTop = true }: { children: ReactNode; onRefresh?: () => Promise<unknown>; back?: string; padTop?: boolean }) {
+export function Screen({ children, onRefresh, back, padTop = true, tabBar }: { children: ReactNode; onRefresh?: () => Promise<unknown>; back?: string; padTop?: boolean; tabBar?: boolean }) {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: C.paper }}
-      contentContainerStyle={{ padding: 20, paddingTop: padTop ? insets.top + 14 : 14, paddingBottom: insets.bottom + 32, gap: 16 }}
+      contentContainerStyle={{ padding: 20, paddingTop: padTop ? insets.top + 14 : 14, paddingBottom: insets.bottom + (tabBar ? 120 : 32), gap: 16 }}
       keyboardShouldPersistTaps="handled"
       refreshControl={
         onRefresh ? (
@@ -153,8 +153,11 @@ export function Button({
   icon,
   compact,
   style,
+  accessibilityLabel,
 }: {
   title: string;
+  /** Spoken label when the visible title is shorter than the action (e.g. "Host"). */
+  accessibilityLabel?: string;
   onPress: () => void;
   variant?: Variant;
   disabled?: boolean;
@@ -178,7 +181,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled: !!(disabled || busy), busy: !!busy }}
       onPress={onPress}
       disabled={disabled || busy}
@@ -194,7 +197,7 @@ export function Button({
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {icon && <Icon name={icon} size={compact ? 16 : 18} color={fg} />}
-          <Text numberOfLines={1} style={[s.btnText, { color: fg }, compact && { fontSize: 14 }]}>{title}</Text>
+          <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[s.btnText, { color: fg }, compact && { fontSize: 14 }]}>{title}</Text>
         </View>
       )}
     </Pressable>
@@ -355,17 +358,18 @@ export function Chips<T extends string | number>({ options, value, onPick, label
  * Ticket shape from the design: a stub, a dashed divider with notches cut top and bottom, a body.
  * `notch` is the colour behind the card, so the notches read as cut-outs.
  */
-export function Ticket({ stub, children, bg = C.card, notch = C.paper, border = C.line, stubWidth = 84, stubRight, style }: { stub: ReactNode; children: ReactNode; bg?: string; notch?: string; border?: string; stubWidth?: number; stubRight?: boolean; style?: StyleProp<ViewStyle> }) {
+export function Ticket({ stub, children, bg = C.card, notch = C.paper, border = C.line, stubWidth = 84, stubRight, borderless, style }: { stub: ReactNode; children: ReactNode; bg?: string; notch?: string; border?: string; stubWidth?: number; stubRight?: boolean; borderless?: boolean; style?: StyleProp<ViewStyle> }) {
+  const edge = borderless ? 0 : 1;
   const stubView = <View style={{ width: stubWidth, alignItems: 'center', justifyContent: 'center', paddingVertical: 16 }}>{stub}</View>;
   const divider = (
     <View style={{ width: 1, alignSelf: 'stretch', alignItems: 'center' }}>
-      <View style={{ position: 'absolute', top: -10, width: 18, height: 18, borderRadius: 9, backgroundColor: notch, borderWidth: 1, borderColor: border }} />
+      <View style={{ position: 'absolute', top: -10, width: 18, height: 18, borderRadius: 9, backgroundColor: notch, borderWidth: edge, borderColor: border }} />
       <View style={{ flex: 1, marginVertical: 12, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: bg === C.card ? C.line : 'rgba(255,255,255,0.45)' }} />
-      <View style={{ position: 'absolute', bottom: -10, width: 18, height: 18, borderRadius: 9, backgroundColor: notch, borderWidth: 1, borderColor: border }} />
+      <View style={{ position: 'absolute', bottom: -10, width: 18, height: 18, borderRadius: 9, backgroundColor: notch, borderWidth: edge, borderColor: border }} />
     </View>
   );
   return (
-    <View style={[{ flexDirection: 'row', backgroundColor: bg, borderRadius: 22, borderWidth: 1, borderColor: border, overflow: 'hidden' }, style]}>
+    <View style={[{ flexDirection: 'row', backgroundColor: bg, borderRadius: 22, borderWidth: edge, borderColor: border, overflow: 'hidden' }, style]}>
       {!stubRight && stubView}
       {!stubRight && divider}
       <View style={{ flex: 1, padding: 16, gap: 6 }}>{children}</View>
