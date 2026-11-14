@@ -128,6 +128,7 @@ export default function Me() {
       {/* Reliability */}
       <H2>Do I show up?</H2>
       <Ticket
+        borderless
         stubWidth={104}
         stub={
           <View style={{ alignItems: 'center', gap: 4 }} accessible accessibilityLabel={rate === null ? 'No reliability score yet' : `Reliability ${rate} percent`}>

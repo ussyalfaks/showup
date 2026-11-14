@@ -43,7 +43,8 @@ export default function Events() {
           onPress={() => router.push('/me')}
           style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, marginLeft: 10, paddingLeft: 14, paddingRight: 6, minHeight: 42, borderRadius: 999, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
           <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={{ flexShrink: 1, fontFamily: F.bodyBold, fontSize: 15, color: C.ink }}>{balance !== null ? `${fromUnits(balance, 24, 2)} NEAR` : balanceLoaded ? 'Add NEAR' : '… NEAR'}</Text>
-          {NETWORK === 'testnet' ? <Pill text="TEST" tone="purple" /> : <View style={{ width: 8 }} />}
+          {/* Wrapped so the pill centres in the chip (Pill pins itself to the top of rows). */}
+          {NETWORK === 'testnet' ? <View style={{ justifyContent: 'center' }}><Pill text="TEST" tone="purple" /></View> : <View style={{ width: 8 }} />}
         </Pressable>
       </View>
 

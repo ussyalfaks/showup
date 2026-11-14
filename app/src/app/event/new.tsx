@@ -3,13 +3,13 @@ import { ActivityIndicator, Pressable, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAccount } from '@/context/account';
-import { C, Card, Chips, F, Field, Icon, Notice, Screen, Segmented, Ticket, errorText } from '@/components/kit';
+import { C, Card, F, Field, Icon, Notice, Screen, Segmented, Ticket, errorText } from '@/components/kit';
 import { EVENT_FEE, USDC_ID } from '@/lib/config';
 import { call } from '@/lib/near';
 import { fromUnits, toUnits } from '@/lib/units';
 import { SOCIAL_DEPOSIT, eventPostText, shareEvent } from '@/lib/social';
 import { StartTimePicker } from '@/components/StartTimePicker';
-import { at, checkinSummary, fmtTime, sameMinute, startPresets, startProblem, zoneName } from '@/lib/eventTime';
+import { at, checkinSummary, fmtTime, startProblem, zoneName } from '@/lib/eventTime';
 
 const CHECKIN = [15, 30, 60, 90, 120].map((m) => ({ value: m, label: m < 60 ? `${m}m` : `${m / 60}h` }));
 const ASSETS = [{ value: 'near' as const, label: 'NEAR' }, { value: 'usdc' as const, label: 'USDC' }];
@@ -67,7 +67,6 @@ export default function NewEvent() {
   const sym = asset === 'near' ? 'NEAR' : 'USDC';
   const previewWhen = `${start.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtTime(start)}`;
   const startError = startProblem(start);
-  const presets = startPresets();
   const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : 0n);
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
@@ -75,6 +74,7 @@ export default function NewEvent() {
         {/* Ticket preview */}
         <Ticket
           stubRight
+          borderless
           stubWidth={86}
           bg={C.accent}
           border={C.accent}
@@ -95,7 +95,6 @@ export default function NewEvent() {
 
         <View style={{ gap: 10 }}>
           <Text style={labelStyle}>Starts</Text>
-          <Chips label="Start time presets" options={presets.map((p) => ({ value: p.date.getTime(), label: p.label }))} value={presets.find((p) => sameMinute(p.date, start))?.date.getTime()} onPick={(t) => setStart(new Date(t))} />
           <StartTimePicker value={start} onChange={setStart} invalid={!!startError} />
           <Text style={{ fontFamily: F.body, color: startError ? C.red : C.muted, fontSize: 13, lineHeight: 18 }}>
             {startError ?? `${checkinSummary(start, checkin)} Times are in your time zone (${zoneName(start)}).`}
