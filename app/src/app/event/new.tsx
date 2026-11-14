@@ -8,50 +8,17 @@ import { EVENT_FEE, USDC_ID } from '@/lib/config';
 import { call } from '@/lib/near';
 import { fromUnits, toUnits } from '@/lib/units';
 import { SOCIAL_DEPOSIT, eventPostText, shareEvent } from '@/lib/social';
+import { StartTimePicker } from '@/components/StartTimePicker';
+import { at, checkinSummary, fmtTime, sameMinute, startPresets, startProblem, zoneName } from '@/lib/eventTime';
 
-const pad = (n: number) => String(n).padStart(2, '0');
-/** Date -> "YYYY-MM-DD HH:MM" in local time (the field's format). */
-function toField(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function at(daysAhead: number, h: number, m = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + daysAhead);
-  d.setHours(h, m, 0, 0);
-  return d;
-}
-function nextSaturday() {
-  const d = at(0, 14);
-  d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
-  return d;
-}
-/** Quick picks for the start time. "In 15 min" is the fastest way to try a whole event. */
-function startPresets() {
-  const soon = new Date(Date.now() + 15 * 60_000);
-  soon.setSeconds(0, 0);
-  const tonight = at(0, 19);
-  return [
-    { value: toField(soon), label: 'In 15 min' },
-    ...(tonight.getTime() > Date.now() + 10 * 60_000 ? [{ value: toField(tonight), label: 'Tonight 7 PM' }] : []),
-    { value: toField(at(1, 18)), label: 'Tomorrow 6 PM' },
-    { value: toField(nextSaturday()), label: 'Saturday 2 PM' },
-  ];
-}
 const CHECKIN = [15, 30, 60, 90, 120].map((m) => ({ value: m, label: m < 60 ? `${m}m` : `${m / 60}h` }));
 const ASSETS = [{ value: 'near' as const, label: 'NEAR' }, { value: 'usdc' as const, label: 'USDC' }];
-
-/** "YYYY-MM-DD HH:MM" in local time -> ms */
-function parseLocal(s: string): number {
-  const m = s.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/);
-  if (!m) throw new Error('Use the format YYYY-MM-DD HH:MM');
-  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
-}
 
 export default function NewEvent() {
   const { account, accountId } = useAccount();
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
-  const [when, setWhen] = useState(() => toField(at(1, 18)));
+  const [start, setStart] = useState(() => at(new Date(), 1, 18));
   const [checkin, setCheckin] = useState(90);
   const [asset, setAsset] = useState<'near' | 'usdc'>('near');
   const [deposit, setDeposit] = useState('1');
@@ -69,8 +36,9 @@ export default function NewEvent() {
     setBusy(true);
     try {
       if (!title.trim()) throw new Error('Give the event a name');
-      const startsAt = parseLocal(when);
-      if (startsAt < Date.now() + 10 * 60_000) throw new Error('Start time must be at least 10 minutes from now');
+      const problem = startProblem(start);
+      if (problem) throw new Error(problem);
+      const startsAt = start.getTime();
       const id = await call<string>(account(), 'create_event', {
         title: title.trim(),
         location: location.trim(),
@@ -97,13 +65,9 @@ export default function NewEvent() {
   }
 
   const sym = asset === 'near' ? 'NEAR' : 'USDC';
-  let previewWhen = 'Pick a start time';
-  try {
-    const d = new Date(parseLocal(when));
-    previewWhen = `${d.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
-  } catch {
-    /* typing in progress */
-  }
+  const previewWhen = `${start.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtTime(start)}`;
+  const startError = startProblem(start);
+  const presets = startPresets();
   const cost = EVENT_FEE + (share ? SOCIAL_DEPOSIT : 0n);
   return (
     <View style={{ flex: 1, backgroundColor: C.paper }}>
@@ -131,9 +95,11 @@ export default function NewEvent() {
 
         <View style={{ gap: 10 }}>
           <Text style={labelStyle}>Starts</Text>
-          <Chips label="Start time presets" options={startPresets()} value={when} onPick={setWhen} />
-          <Field icon="clock" mono value={when} onChangeText={setWhen} placeholder="2026-11-20 18:00" accessibilityLabel="Start time, YYYY-MM-DD HH:MM" />
-          <Text style={{ fontFamily: F.body, color: C.muted, fontSize: 13 }}>Or type a time (YYYY-MM-DD HH:MM). Check-in opens 2 h before.</Text>
+          <Chips label="Start time presets" options={presets.map((p) => ({ value: p.date.getTime(), label: p.label }))} value={presets.find((p) => sameMinute(p.date, start))?.date.getTime()} onPick={(t) => setStart(new Date(t))} />
+          <StartTimePicker value={start} onChange={setStart} invalid={!!startError} />
+          <Text style={{ fontFamily: F.body, color: startError ? C.red : C.muted, fontSize: 13, lineHeight: 18 }}>
+            {startError ?? `${checkinSummary(start, checkin)} Times are in your time zone (${zoneName(start)}).`}
+          </Text>
         </View>
 
         <View style={{ gap: 10 }}>
@@ -177,10 +143,10 @@ export default function NewEvent() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Create event"
-          accessibilityState={{ busy }}
-          disabled={busy}
+          accessibilityState={{ busy, disabled: !!startError }}
+          disabled={busy || !!startError}
           onPress={create}
-          style={({ pressed }) => ({ minHeight: 56, borderRadius: 999, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: pressed || busy ? 0.8 : 1 })}>
+          style={({ pressed }) => ({ minHeight: 56, borderRadius: 999, backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: startError ? 0.45 : pressed || busy ? 0.8 : 1 })}>
           {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={{ fontFamily: F.bodyBold, fontSize: 17, color: '#FFFFFF' }}>Create event</Text>}
           {!busy && (
             <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.coral, alignItems: 'center', justifyContent: 'center' }}>
@@ -202,7 +168,7 @@ function ToggleRow({ label, hint, value, onChange, divider }: { label: string; h
         <Text style={{ fontFamily: F.bodyBold, fontSize: 16, color: C.ink }}>{label}</Text>
         <Text style={{ fontFamily: F.body, color: C.muted, fontSize: 13, lineHeight: 18 }}>{hint}</Text>
       </View>
-      <Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ true: C.accent, false: C.field }} thumbColor="#FFFFFF" ios_backgroundColor={C.field} />
+      <Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ true: C.accent, false: C.field }} thumbColor="#FFFFFF" {...({ activeThumbColor: "#FFFFFF" } as object)} ios_backgroundColor={C.field} />
     </View>
   );
 }

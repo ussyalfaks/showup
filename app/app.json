@@ -46,7 +46,8 @@
           "photosPermission": "ShowUp uses your photos so you can pick a profile picture.",
           "cameraPermission": "ShowUp uses the camera to scan check-in and gift card QR codes."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

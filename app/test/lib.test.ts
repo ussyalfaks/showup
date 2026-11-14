@@ -139,3 +139,48 @@ test('redeem code: older links without a code still open', async () => {
   assert.deepEqual(claimParams({ kind: 'key', secret }), { k: secret });
   assert.equal(parseCardLink('hello'), null);
 });
+
+test('event start time: 12-hour clock, quarter hours, presets and the 10-minute rule', async () => {
+  const t = await import('../src/lib/eventTime.ts');
+  // 12 AM is midnight, 12 PM is noon
+  assert.deepEqual(t.to12h(0), { hour: 12, pm: false });
+  assert.deepEqual(t.to12h(12), { hour: 12, pm: true });
+  assert.deepEqual(t.to12h(19), { hour: 7, pm: true });
+  assert.equal(t.from12h(12, false), 0);
+  assert.equal(t.from12h(12, true), 12);
+  assert.equal(t.from12h(7, true), 19);
+  for (let h = 0; h < 24; h++) assert.equal(t.from12h(t.to12h(h).hour, t.to12h(h).pm), h);
+
+  // rounding up to the next quarter, across the hour
+  const r = t.roundUpToQuarter(new Date(2026, 10, 14, 9, 52, 30));
+  assert.equal(r.getHours(), 10);
+  assert.equal(r.getMinutes(), 0);
+  assert.equal(t.roundUpToQuarter(new Date(2026, 10, 14, 9, 30, 0)).getMinutes(), 30);
+
+  // changing the time keeps the day; changing the day keeps the time
+  const d = new Date(2026, 10, 20, 18, 0);
+  const moved = t.withTime(d, 7, 45, false);
+  assert.equal(moved.getDate(), 20);
+  assert.equal(moved.getHours(), 7);
+  assert.equal(moved.getMinutes(), 45);
+  const otherDay = t.withDay(moved, new Date(2026, 11, 1));
+  assert.deepEqual([otherDay.getMonth(), otherDay.getDate(), otherDay.getHours(), otherDay.getMinutes()], [11, 1, 7, 45]);
+
+  // presets: all on quarter hours, all at least 10 minutes away; "Tonight" only when there's time
+  const now = new Date(2026, 10, 14, 18, 55);
+  const presets = t.startPresets(now);
+  for (const p of presets) {
+    assert.ok(t.MINUTES.includes(p.date.getMinutes() as 0), p.label);
+    assert.equal(t.startProblem(p.date, now), null, p.label);
+  }
+  assert.ok(!presets.some((p) => p.label === 'Tonight 7 PM')); // 7 PM is 5 minutes away
+  assert.ok(t.startPresets(new Date(2026, 10, 14, 12, 0)).some((p) => p.label === 'Tonight 7 PM'));
+  assert.equal(presets.find((p) => p.label === 'Saturday 2 PM')!.date.getDay(), 6);
+
+  assert.match(t.startProblem(new Date(now.getTime() + 5 * 60_000), now)!, /10 minutes/);
+  assert.equal(t.startProblem(new Date(now.getTime() + 11 * 60_000), now), null);
+
+  // check-in summary, including a window that crosses midnight
+  assert.equal(t.checkinSummary(new Date(2026, 10, 20, 18, 0), 90), 'Check-in opens 4:00 PM and closes 7:30 PM.');
+  assert.match(t.checkinSummary(new Date(2026, 10, 20, 23, 30), 60), /closes 12:30 AM \(Sat\)/);
+});
