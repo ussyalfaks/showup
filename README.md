@@ -41,7 +41,7 @@ Also by this author at NEAR HACKATHON: **Proof of Delivery**, escrow that pays f
 | **Implicit accounts** | The app makes a wallet on first launch (key in the phone's secure storage). It activates when it first receives NEAR, for example from a gift card. |
 | **`ed25519_verify`** | Rotating check-in QRs are verified in the contract. No server and no ticketing company. |
 | **NEP-141 / NEP-145** | USDC cards and deposits via `ft_transfer_call`. Payouts register the receiver, then `ft_transfer`. |
-| **NEAR Social (SocialDB)** | Profiles (`<account>/profile`) for names and photos. Event posts and shout-outs go to `post/main` with `#showup` hashtag and `@mention` notify indexes, the same format near.social uses. Each shared event is also written to `<host>/showup/event/<id>`, so Discover reads it straight from the contract (`*/showup/event/*`) on testnet and mainnet with no indexer. Contract: `social.near` on mainnet, `v1.social08.testnet` on testnet. |
+| **NEAR Social (SocialDB)** | Profiles (`<account>/profile`) for names and photos, edited in the app: the photo uploads to NEAR Social's IPFS gateway and the profile is one `set` call. Event posts and shout-outs go to `post/main` with `#showup` hashtag and `@mention` notify indexes, the same format near.social uses. Each shared event is also written to `<host>/showup/event/<id>`, so Discover reads it straight from the contract (`*/showup/event/*`) on testnet and mainnet with no indexer. Contract: `social.near` on mainnet, `v1.social08.testnet` on testnet. |
 
 ## Repository layout
 ```
@@ -62,7 +62,9 @@ Requirements: Rust, Node 22+. For the phone, install **Expo Go** (iOS/Android).
 
 **2. Run the app logic tests.** Do: `cd app && npm install && npm test`. You should see `pass 8`: amounts, the on-phone wallet, the card link round trip, check-in QR signing, the NEAR Social post format (hashtags and mentions), shout-out tagging, profile images and address parsing for Send.
 
-**3. Open the app on your phone.** Do: `cd app && cp .env.example .env` (it already points at `showup.testnet`), then `npx expo start`, and scan the QR with Expo Go. You should see three tabs: **Events**, **Gift cards**, **Me**. The **Me** tab shows your new wallet address.
+**3. Open the app on your phone.** Do: `cd app && cp .env.example .env` (it already points at `showup.testnet`), then `npx expo start`, and scan the QR with Expo Go. You should see the ShowUp splash, then onboarding:
+   - **Create a new wallet**, then add your name and photo (**Who's showing up?**), then **Add NEAR to get started** with your address, a QR and the testnet faucet. Tap **I'll do this later** to reach the three tabs: **Events**, **Gift Cards**, **Me**.
+   - Or **I already have a NEAR wallet**: paste a private key (`ed25519:…`) and tap **Find my account**. The app looks up which account the key belongs to, so you don't type the account name.
    - No phone? `npx expo start --web` runs the same app in a browser.
 
 **4. Send a gift card.** Do: fund the wallet (testnet faucet link on **Me**), then **Gift cards → Create**, enter 1 NEAR and tap **Create card**. You should see a QR and a share link. Open the link on a second phone, or paste it under **Got a card?**, and tap **Claim to my wallet**. The second wallet shows the NEAR, and it paid no gas.
@@ -76,7 +78,9 @@ Requirements: Rust, Node 22+. For the phone, install **Expo Go** (iOS/Android).
    - After check-in closes: **Settle the event**. Attendees then see **Collect X NEAR**, their deposit plus their share of the no-show pot. **Me → Do I show up?** updates.
    - Host: **Thank attendees on NEAR Social**. You should see a post on the #showup feed tagging the attendees who have named accounts.
 
-**7. Share and discover.** Creating an event with **Share on NEAR Social** on posts it to #showup. You should see it under **Discover on NEAR Social** on the Events tab, and on near.social. Guests and hosts with a NEAR Social profile appear with their name and photo.
+**7. Profile, without leaving the app.** Do: **Me → Edit** (or **Set up**), pick a photo and type your name, then **Save profile**. You should see your name and photo on **Me**, on events you host or join, and on gift cards you send. It's saved to your NEAR Social profile (`<account>/profile`), so other NEAR apps show it too. A wallet with no NEAR yet keeps the profile on the phone; **Me** then shows **Publish profile** once the wallet is funded.
+
+**8. Share and discover.** Creating an event with **Share on NEAR Social** on posts it to #showup. You should see it under **Discover on NEAR Social** on the Events tab, and on near.social. Guests and hosts with a NEAR Social profile appear with their name and photo.
 
 ## Deploy your own
 You need:
@@ -98,7 +102,7 @@ The script runs the contract tests, builds the wasm and creates `showup.you.test
 ## Disclosure
 - All code was written during the hackathon window (Nov 2026). The app was scaffolded with `create-expo-app`.
 - NEAR Social writes use the same data format as near-social-js, called directly with near-api-js.
-- Libraries: near-sdk, near-api-js, Expo (router, camera, secure-store, clipboard), react-native-qrcode-svg, react-native-svg, react-native-get-random-values, buffer, util (polyfill for near-api-js on React Native); ed25519-dalek and tsx for tests.
+- Libraries: near-sdk, near-api-js, Expo (router, camera, image-picker, secure-store, clipboard), react-native-qrcode-svg, react-native-svg, react-native-get-random-values, buffer, util (polyfill for near-api-js on React Native); ed25519-dalek and tsx for tests.
 - The gift-card idea is inspired by existing crypto gift-card apps. No code or branding was used.
 - Much of the code was written with AI assistance (Claude) and reviewed and tested by the author.
 
