@@ -80,11 +80,10 @@ export function AnimatedSplash({ start, onDone }: { start: boolean; onDone: () =
   if (!visible) return null;
   return (
     <Animated.View
-      pointerEvents="none"
       accessible
       accessibilityRole="image"
       accessibilityLabel="ShowUp"
-      style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: exit, zIndex: 100 }]}>
+      style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: exit, zIndex: 100, pointerEvents: 'none' }]}>
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_BG, opacity: bg, alignItems: 'center', justifyContent: 'center' }]}>
         <Svg width={glow} height={glow} style={{ position: 'absolute' }}>
           <Defs>
